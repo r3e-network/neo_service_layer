@@ -1,103 +1,87 @@
-network: testnet
-node:
-  url: http://localhost:10332
-  ws_url: ws://localhost:10332/ws
+environment: development
+logLevel: info
 
 api:
-  port: 3000
-  host: 0.0.0.0
+  host: localhost
+  port: 8080
+  endpoint: http://localhost:10332
+  timeout: 30s
+  enableCors: true
+  maxRequestBodySize: 10485760 # 10MB
 
-redis:
-  url: redis://localhost:6379
-  password: ""
+database:
+  driver: postgres
+  host: localhost
+  port: 5432
+  name: neo_service_layer
+  user: postgres
+  password: postgres
+  sslMode: disable
 
-metrics:
-  port: 9090
-  host: 0.0.0.0
+neo:
+  network: testnet
+  rpc:
+    - http://seed1t5.neo.org:20332
+    - http://seed2t5.neo.org:20332
+  blockTime: 15
+  confirmations: 1
 
-logging:
-  level: debug
-  format: json
-  output: stdout
-
-worker:
-  port: 3001
-  host: 0.0.0.0
-  
 services:
-  price_feed:
-    enabled: true
-    update_interval: 1m0s
+  gasBank:
+    initialGas: 1000
+    refillAmount: 100
+    refillThreshold: 10
+    maxAllocationPerUser: 100
+    minAllocationAmount: 1
+    maxAllocationTime: 24h
+    cooldownPeriod: 1h
+    storeType: postgres
+    monitorInterval: 5m
+
+  priceFeed:
+    updateInterval: 1m
+    minDeviation: 0.5
+    heartbeatTime: 24h
     sources:
       - binance
-      - coinbase
-    
-  gas_bank:
-    enabled: true
-    min_gas_balance: 1000
-    refill_threshold: 500
-    monitor_interval: 5m0s
-    expiration_check_interval: 15m0s
-    max_allocation_time: 24h0m0s
-    cooldown_period: 5m0s
-    initial_gas: 1000000000
-    refill_amount: 500000000
-    max_allocation_per_user: 100000000
-    min_allocation_amount: 1000000
-    store_type: memory
-    
-  trigger:
-    enabled: true
-    poll_interval: 15s
-    max_retries: 3
-    max_triggers: 1000
-    max_executions: 100
-    execution_window: 5m0s
-    
-  functions:
-    enabled: true
-    max_execution_time: 30s
-    default_runtime: node16
-    max_memory: 512
-    max_cpu: 1
-    tee:
-      enabled: true
-      config_path: /etc/tee/config.json
-    
-  secrets:
-    enabled: true
-    encryption_key: ${SECRETS_ENCRYPTION_KEY}
-    rotation_interval: 24h0m0s
-    max_secrets_per_user: 100
-    max_secret_size: 4096
-    enable_access_logging: true
-    
+      - huobi
+      - okex
+
   automation:
-    enabled: true
-    check_interval: 15s
-    retry_attempts: 3
-    retry_delay: 5s
-    gas_buffer: 1000000
-    min_blocks_before_execution: 1
-    max_blocks_before_execution: 5
-    
+    checkInterval: 1m
+    retryDelay: 5m
+    maxExecutionTime: 5m
+    maxRetries: 3
+
+  functions:
+    executionWindow: 5m
+    maxMemory: 512
+    maxTimeout: 30s
+    defaultRuntime: python3.9
+
+  trigger:
+    maxTriggers: 100
+    maxExecutions: 1000
+    retentionPeriod: 720h # 30 days
+
+  secrets:
+    rotationInterval: 720h # 30 days
+    storeType: postgres
+    encryptionKey: ${SECRETS_ENCRYPTION_KEY}
+
   metrics:
-    enabled: true
-    collection_interval: 15s
-    retention_period: 168h0m0s
-    storage_backend: prometheus
-    
+    collectionInterval: 1m
+    retentionPeriod: 2160h # 90 days
+    exportFormat: prometheus
+
   logging:
-    enabled: true
-    level: debug
-    enable_json_logs: true
-    log_file_path: logs/service.log
-    max_size_mb: 100
-    retained_files: 10
-    enable_compression: true
+    format: json
+    retentionPeriod: 2160h # 90 days
+    maxSize: 100
+    maxBackups: 10
 
 security:
-  tee_enabled: true
-  api_key_required: true
-  jwt_secret: ${JWT_SECRET}
-  jwt_expiry_hours: 24 
+  jwtSecret: ${JWT_SECRET}
+  tokenExpiration: 24h
+  allowedOrigins:
+    - "*"

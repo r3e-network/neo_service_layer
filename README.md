@@ -1,175 +1,146 @@
-# Neo Service Layer
+# Neo N3 Service Layer CLI
 
-## Overview
+A command-line interface for managing Neo N3 Service Layer components including accounts, triggers, functions, price feeds, and gas banks.
 
-Neo Service Layer is a comprehensive middleware platform designed to provide Chainlink-like functionality for the Neo N3 blockchain. It offers a suite of services that enable developers to create, deploy, and manage decentralized applications with enhanced capabilities such as external data integration, automated task execution, and secure function management.
+## Installation
 
-## Core Services
+```bash
+go install github.com/will/neo_service_layer/cmd/cli@latest
+```
 
-### Functions Service
+## Configuration
 
-Manages serverless functions that can be executed in a Trusted Execution Environment (TEE):
+The CLI can be configured using a YAML configuration file. By default, it looks for a file named `config.yaml` in the current directory. You can specify a different configuration file using the `--config` flag.
 
-- Function creation, execution, and management
-- Support for JavaScript and other runtime environments
-- Permission-based access control
-- Resource usage limits and monitoring
+Example configuration:
 
-### Secrets Service
+```yaml
+environment: development
+logLevel: info
+api:
+  host: localhost
+  port: 8080
+  endpoint: http://localhost:10332
+  timeout: 30s
+  enableCors: true
+  maxRequestBodySize: 10485760 # 10MB
+```
 
-Securely stores and manages sensitive information:
+## Usage
 
-- Encrypted storage of sensitive credentials and keys
-- Fine-grained access control for functions and users
-- Automatic secret rotation and expiration
-- Integration with TEE for secure access
+### Global Flags
 
-### Gas Bank Service
+- `--config`: Path to configuration file
+- `--verbose`: Enable verbose logging
 
-Manages GAS allocation and usage for operations:
+### Commands
 
-- Gas allocation for user operations
-- Automated refill mechanisms
-- Usage tracking and optimization
-- Balance management and reporting
+#### Triggers
 
-### Price Feed Service
+Manage function triggers that invoke functions based on events, schedules, or contract conditions.
 
-Provides reliable price data for various assets:
+```bash
+# Create a new trigger
+cli triggers create \
+  --name my-trigger \
+  --function my-function \
+  --schedule "*/5 * * * *" \
+  --params '{"key": "value"}'
 
-- Collection of price data from multiple sources
-- Validation and aggregation of data points
-- On-chain publication of verified price data
-- Historical price data storage and access
+# Create a contract event trigger
+cli triggers create \
+  --name contract-trigger \
+  --function handle-event \
+  --contract 0x1234...5678 \
+  --event Transfer
 
-### Trigger Service
+# Create a contract method trigger
+cli triggers create \
+  --name method-trigger \
+  --function check-balance \
+  --contract 0x1234...5678 \
+  --method balanceOf \
+  --condition "result > 100"
 
-Enables event-driven automation:
+# List all triggers
+cli triggers list
 
-- Conditional trigger execution based on blockchain events
-- Schedule-based execution using CRON expressions
-- Integration with Functions service for action execution
-- Execution history and monitoring
+# List active triggers
+cli triggers list --status active
 
-### Metrics Service
+# Get trigger details in JSON format
+cli triggers list --format json
 
-Collects and reports on system performance and usage:
+# Delete a trigger
+cli triggers delete my-trigger
 
-- Real-time metrics collection from all services
-- Prometheus integration for monitoring
-- Customizable dashboards for visualization
-- Service health monitoring and alerting
-- Historical data storage and analysis
+# Force delete an active trigger
+cli triggers delete my-trigger --force
 
-## Supporting Services
+# Enable a trigger
+cli triggers enable my-trigger
 
-### API Service
+# Disable a trigger
+cli triggers disable my-trigger
 
-Provides a RESTful interface for external applications:
+# View trigger execution history
+cli triggers history my-trigger
 
-- Unified access to all services
-- Signature-based authentication
-- Rate limiting and security features
-- Comprehensive endpoint documentation
+# View recent history with custom limit
+cli triggers history my-trigger --limit 50 --since 1h
 
-### Logging Service
+# Check trigger status
+cli triggers status my-trigger
 
-Centralizes log collection and analysis:
+# Get status in JSON format
+cli triggers status my-trigger --format json
+```
 
-- Aggregated logs from all services
-- Structured logging format
-- Query interface for log analysis
-- Retention policies and storage management
+#### Accounts
 
-## Architecture
+Manage Neo N3 accounts.
 
-The Neo Service Layer follows a microservices architecture pattern, with distinct services that handle specific functionalities while communicating through well-defined interfaces. This design allows for better scalability, maintainability, and resilience.
+```bash
+# Create a new account
+cli accounts create
 
-For detailed architecture information, see [Architecture Overview](docs/architecture/architecture-overview.md).
+# Create account with custom name
+cli accounts create --name my-account
 
-## Documentation
+# List all accounts
+cli accounts list
 
-- [Architecture Overview](docs/architecture/architecture-overview.md)
-- [API Integration Guide](docs/api-integration.md)
-- [Neo Blockchain Integration](docs/neo-integration.md)
-- [Functions Runtime](docs/functions-runtime.md)
-- [Gas Bank Service](docs/gasbank-service.md)
-- [Trigger Service](docs/trigger-service.md)
-- [Metrics Service](docs/metrics-service.md)
-- [Integration Tests Documentation](docs/integration-tests.md)
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.18 or higher
-- Docker and Docker Compose (for local development)
-- Neo N3 node access (local or remote)
-- PostgreSQL 13 or higher (for production deployment)
-
-### Local Development Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/will/neo_service_layer.git
-   cd neo_service_layer
-   ```
-
-2. Install dependencies:
-   ```bash
-   go mod download
-   ```
-
-3. Run tests:
-   ```bash
-   go test ./...
-   ```
-
-4. Start the services locally:
-   ```bash
-   make run
-   ```
-
-### Configuration
-
-The Neo Service Layer can be configured using environment variables or configuration files. See `config/examples` for sample configurations.
-
-Key configuration files:
-- `config/app.yaml`: Main application configuration
-- `config/services/*.yaml`: Service-specific configurations
-
-### Deployment
-
-For production deployment instructions, see [Deployment Guide](docs/deployment.md).
+# Delete an account
+cli accounts delete my-account
+```
 
 ## Development
 
-### Project Structure
+### Prerequisites
 
+- Go 1.21 or later
+- Neo N3 node (TestNet or PrivateNet)
+
+### Building
+
+```bash
+make build
 ```
-├── cmd/                  # Command-line applications
-├── config/               # Configuration files
-├── docs/                 # Documentation
-├── internal/             # Internal packages
-│   ├── common/           # Shared utilities
-│   └── services/         # Service implementations
-├── pkg/                  # Public API packages
-├── scripts/              # Build and deployment scripts
-└── tests/                # Integration and end-to-end tests
+
+### Testing
+
+```bash
+make test
 ```
 
 ### Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-new-feature`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to the branch (`git push origin feature/my-new-feature`)
-5. Create a new Pull Request
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-[MIT License](LICENSE)
-
-## Contact
-
-For questions or support, please contact the team at [will@neo_service_layer.com](mailto:will@neo_service_layer.com).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

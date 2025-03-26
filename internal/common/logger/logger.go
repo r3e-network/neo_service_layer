@@ -20,17 +20,18 @@ const (
 	ErrorLevel
 )
 
-// Logger represents a simple logger interface
+// Logger represents a logger interface
 type Logger interface {
-	Debug(message string, fields map[string]interface{})
-	Info(message string, fields map[string]interface{})
-	Warn(message string, fields map[string]interface{})
-	Error(message string, fields map[string]interface{})
+	Debug(msg string, fields map[string]interface{})
+	Info(msg string, fields map[string]interface{})
+	Warn(msg string, fields map[string]interface{})
+	Error(msg string, fields map[string]interface{})
+	Fatal(msg string, fields map[string]interface{})
 	WithField(key string, value interface{}) Logger
 	WithFields(fields map[string]interface{}) Logger
 }
 
-// SimpleLogger implements the Logger interface
+// SimpleLogger represents a simple logger implementation
 type SimpleLogger struct {
 	level  LogLevel
 	fields map[string]interface{}
@@ -86,6 +87,12 @@ func (l *SimpleLogger) Error(message string, fields map[string]interface{}) {
 	if l.level <= ErrorLevel {
 		l.log("ERROR", message, fields)
 	}
+}
+
+// Fatal logs a fatal message and exits the program
+func (l *SimpleLogger) Fatal(msg string, fields map[string]interface{}) {
+	l.log("FATAL", msg, fields)
+	os.Exit(1)
 }
 
 // WithField returns a new logger with the field added
