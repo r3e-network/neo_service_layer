@@ -190,9 +190,16 @@ func initMetricsService(cfg *config.Config) *metrics.Service {
 
 func initGasBankService(ctx context.Context, cfg *config.Config) (*gasbank.Service, error) {
 	gasBankConfig := &gasbank.Config{
-		InitialGas:           big.NewInt(1000000),
-		MaxAllocationPerUser: big.NewInt(100000),
-		StoreType:            "memory",
+		InitialGas:              big.NewInt(1000000000), // 10 GAS
+		RefillAmount:            big.NewInt(500000000),  // 5 GAS
+		RefillThreshold:         big.NewInt(200000000),  // 2 GAS
+		MaxAllocationPerUser:    big.NewInt(100000000),  // 1 GAS
+		MinAllocationAmount:     big.NewInt(1000000),    // 0.01 GAS
+		StoreType:               "memory",
+		MaxAllocationTime:       24 * time.Hour,
+		CooldownPeriod:          5 * time.Minute,
+		ExpirationCheckInterval: 15 * time.Minute,
+		MonitorInterval:         5 * time.Minute,
 	}
 	return gasbank.NewService(ctx, gasBankConfig)
 }

@@ -6,27 +6,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
 
 // Config represents the application configuration
 type Config struct {
-	Environment string          `yaml:"environment"`
-	LogLevel    string          `yaml:"logLevel"`
-	API         APIConfig       `yaml:"api"`
-	Database    DatabaseConfig  `yaml:"database"`
-	Neo         NeoConfig       `yaml:"neo"`
-	Services    ServicesConfig  `yaml:"services"`
-	Security    SecurityConfig  `yaml:"security"`
+	Environment string         `yaml:"environment"`
+	LogLevel    string         `yaml:"logLevel"`
+	API         APIConfig      `yaml:"api"`
+	Database    DatabaseConfig `yaml:"database"`
+	Neo         NeoConfig      `yaml:"neo"`
+	Services    ServicesConfig `yaml:"services"`
+	Security    SecurityConfig `yaml:"security"`
 }
 
 // APIConfig represents the API configuration
 type APIConfig struct {
-	Host              string `yaml:"host"`
-	Port              int    `yaml:"port"`
-	EnableCORS        bool   `yaml:"enableCORS"`
-	MaxRequestBodySize int   `yaml:"maxRequestBodySize"`
+	Host               string `yaml:"host"`
+	Port               int    `yaml:"port"`
+	EnableCORS         bool   `yaml:"enableCORS"`
+	MaxRequestBodySize int    `yaml:"maxRequestBodySize"`
 }
 
 // DatabaseConfig represents the database configuration
@@ -65,58 +66,62 @@ type ServicesConfig struct {
 
 // GasBankConfig represents the GasBank service configuration
 type GasBankConfig struct {
-	InitialGas           string `yaml:"initialGas"`
-	MaxAllocationPerUser string `yaml:"maxAllocationPerUser"`
-	StoreType            string `yaml:"storeType"`
+	InitialGas              string        `yaml:"initialGas"`
+	MaxAllocationPerUser    string        `yaml:"maxAllocationPerUser"`
+	StoreType               string        `yaml:"storeType"`
+	MonitorInterval         time.Duration `yaml:"monitorInterval"`
+	ExpirationCheckInterval time.Duration `yaml:"expirationCheckInterval"`
+	MaxAllocationTime       time.Duration `yaml:"maxAllocationTime"`
+	CooldownPeriod          time.Duration `yaml:"cooldownPeriod"`
 }
 
 // PriceFeedConfig represents the PriceFeed service configuration
 type PriceFeedConfig struct {
-	UpdateInterval    int      `yaml:"updateInterval"`
-	SupportedSymbols  []string `yaml:"supportedSymbols"`
-	DefaultHeartbeat  int      `yaml:"defaultHeartbeat"`
-	MaxDeviationRate  float64  `yaml:"maxDeviationRate"`
-	AnswerAggregation string   `yaml:"answerAggregation"`
+	UpdateInterval    time.Duration `yaml:"updateInterval"`
+	SupportedSymbols  []string      `yaml:"supportedSymbols"`
+	DefaultHeartbeat  int           `yaml:"defaultHeartbeat"`
+	MaxDeviationRate  float64       `yaml:"maxDeviationRate"`
+	AnswerAggregation string        `yaml:"answerAggregation"`
 }
 
 // AutomationConfig represents the Automation service configuration
 type AutomationConfig struct {
-	CheckInterval   int    `yaml:"checkInterval"`
-	RetryAttempts   int    `yaml:"retryAttempts"`
-	RetryDelay      int    `yaml:"retryDelay"`
-	GasBuffer       string `yaml:"gasBuffer"`
-	KeeperRegistry  string `yaml:"keeperRegistry"`
+	CheckInterval  time.Duration `yaml:"checkInterval"`
+	RetryAttempts  int           `yaml:"retryAttempts"`
+	RetryDelay     time.Duration `yaml:"retryDelay"`
+	GasBuffer      string        `yaml:"gasBuffer"`
+	KeeperRegistry string        `yaml:"keeperRegistry"`
 }
 
 // FunctionsConfig represents the Functions service configuration
 type FunctionsConfig struct {
-	MaxExecutionTime int    `yaml:"maxExecutionTime"`
-	DefaultRuntime   string `yaml:"defaultRuntime"`
-	MaxMemory        int    `yaml:"maxMemory"`
-	MaxCPU           int    `yaml:"maxCPU"`
+	MaxExecutionTime time.Duration `yaml:"maxExecutionTime"`
+	DefaultRuntime   string        `yaml:"defaultRuntime"`
+	MaxMemory        int           `yaml:"maxMemory"`
+	MaxCPU           int           `yaml:"maxCPU"`
 }
 
 // TriggerConfig represents the Trigger service configuration
 type TriggerConfig struct {
-	MaxTriggers     int `yaml:"maxTriggers"`
-	MaxExecutions   int `yaml:"maxExecutions"`
-	ExecutionWindow int `yaml:"executionWindow"`
+	MaxTriggers     int           `yaml:"maxTriggers"`
+	MaxExecutions   int           `yaml:"maxExecutions"`
+	ExecutionWindow time.Duration `yaml:"executionWindow"`
 }
 
 // SecretsConfig represents the Secrets service configuration
 type SecretsConfig struct {
-	EncryptionKey       string `yaml:"encryptionKey"`
-	RotationInterval    int    `yaml:"rotationInterval"`
-	MaxSecretsPerUser   int    `yaml:"maxSecretsPerUser"`
-	MaxSecretSize       int    `yaml:"maxSecretSize"`
-	EnableAccessLogging bool   `yaml:"enableAccessLogging"`
+	EncryptionKey       string        `yaml:"encryptionKey"`
+	RotationInterval    time.Duration `yaml:"rotationInterval"`
+	MaxSecretsPerUser   int           `yaml:"maxSecretsPerUser"`
+	MaxSecretSize       int           `yaml:"maxSecretSize"`
+	EnableAccessLogging bool          `yaml:"enableAccessLogging"`
 }
 
 // MetricsConfig represents the Metrics service configuration
 type MetricsConfig struct {
-	CollectionInterval int    `yaml:"collectionInterval"`
-	RetentionPeriod    int    `yaml:"retentionPeriod"`
-	StorageBackend     string `yaml:"storageBackend"`
+	CollectionInterval time.Duration `yaml:"collectionInterval"`
+	RetentionPeriod    time.Duration `yaml:"retentionPeriod"`
+	StorageBackend     string        `yaml:"storageBackend"`
 }
 
 // LoggingConfig represents the Logging service configuration
@@ -210,9 +215,9 @@ func DefaultConfig() *Config {
 		Environment: "development",
 		LogLevel:    "info",
 		API: APIConfig{
-			Host:              "0.0.0.0",
-			Port:              8080,
-			EnableCORS:        true,
+			Host:               "0.0.0.0",
+			Port:               8080,
+			EnableCORS:         true,
 			MaxRequestBodySize: 10 * 1024 * 1024, // 10MB
 		},
 		Database: DatabaseConfig{
@@ -235,53 +240,56 @@ func DefaultConfig() *Config {
 		},
 		Services: ServicesConfig{
 			GasBank: GasBankConfig{
-				InitialGas:           "1000000",
-				MaxAllocationPerUser: "100000",
-				StoreType:            "memory",
+				InitialGas:              "1000000000",
+				MaxAllocationPerUser:    "100000000",
+				StoreType:               "memory",
+				MonitorInterval:         5 * time.Minute,
+				ExpirationCheckInterval: 15 * time.Minute,
+				MaxAllocationTime:       24 * time.Hour,
+				CooldownPeriod:          5 * time.Minute,
 			},
 			PriceFeed: PriceFeedConfig{
-				UpdateInterval:    60,
-				SupportedSymbols:  []string{"NEO", "GAS", "BTC", "ETH"},
-				DefaultHeartbeat:  3600,
-				MaxDeviationRate:  0.5,
-				AnswerAggregation: "median",
+				UpdateInterval:   60 * time.Second,
+				SupportedSymbols: []string{"NEO", "GAS"},
+				DefaultHeartbeat: 3600,
+				MaxDeviationRate: 0.1,
 			},
 			Automation: AutomationConfig{
-				CheckInterval:   300,
-				RetryAttempts:   3,
-				RetryDelay:      15,
-				GasBuffer:       "10000",
-				KeeperRegistry:  "",
+				CheckInterval:  15 * time.Second,
+				RetryAttempts:  3,
+				RetryDelay:     5 * time.Second,
+				GasBuffer:      "1000000",
+				KeeperRegistry: "",
 			},
 			Functions: FunctionsConfig{
-				MaxExecutionTime: 30,
-				DefaultRuntime:   "javascript",
-				MaxMemory:        128,
+				MaxExecutionTime: 30 * time.Second,
+				DefaultRuntime:   "node16",
+				MaxMemory:        512,
 				MaxCPU:           1,
 			},
 			Trigger: TriggerConfig{
-				MaxTriggers:     10,
+				MaxTriggers:     1000,
 				MaxExecutions:   100,
-				ExecutionWindow: 86400,
+				ExecutionWindow: 5 * time.Minute,
 			},
 			Secrets: SecretsConfig{
 				EncryptionKey:       "",
-				RotationInterval:    30,
+				RotationInterval:    24 * time.Hour,
 				MaxSecretsPerUser:   100,
 				MaxSecretSize:       4096,
 				EnableAccessLogging: true,
 			},
 			Metrics: MetricsConfig{
-				CollectionInterval: 15,
-				RetentionPeriod:    604800, // 7 days
-				StorageBackend:     "memory",
+				CollectionInterval: 15 * time.Second,
+				RetentionPeriod:    7 * 24 * time.Hour,
+				StorageBackend:     "prometheus",
 			},
 			Logging: LoggingConfig{
 				LogLevel:          "info",
 				EnableJSONLogs:    true,
-				LogFilePath:       "/var/log/neo-service-layer/app.log",
+				LogFilePath:       "logs/service.log",
 				MaxSizeInMB:       100,
-				RetainedFiles:     7,
+				RetainedFiles:     10,
 				EnableCompression: true,
 			},
 		},
