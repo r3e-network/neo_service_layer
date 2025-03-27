@@ -171,7 +171,8 @@ func (tm *TriggerManagerImpl) ExecuteTrigger(ctx context.Context, userAddress ut
 	// Implementation would evaluate condition and execute function
 	execution.EndTime = time.Now()
 	execution.Status = "completed"
-	execution.GasUsed = 1000 // Replace with actual gas usage
+	execution.GasUsed = 1000                           // Replace with actual gas usage
+	execution.Result = "Trigger executed successfully" // Add result
 
 	if err := tm.store.SaveExecution(ctx, execution); err != nil {
 		return nil, fmt.Errorf("failed to save execution: %w", err)

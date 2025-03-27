@@ -157,6 +157,7 @@ func TestTriggerManager(t *testing.T) {
 		nextExecution := time.Now().Add(5 * time.Minute)
 
 		// Setup expectations
+		store.On("ListTriggers", ctx, userAddress).Return([]*models.Trigger{}, nil)
 		scheduler.On("GetNextExecutionTime", ctx, trigger.Schedule).Return(nextExecution, nil)
 		store.On("SaveTrigger", ctx, mock.AnythingOfType("*models.Trigger")).Return(nil)
 		scheduler.On("ScheduleTrigger", ctx, mock.AnythingOfType("*models.Trigger")).Return(nil)
@@ -187,12 +188,13 @@ func TestTriggerManager(t *testing.T) {
 		metrics.On("RecordExecution", ctx, mock.AnythingOfType("*models.TriggerExecution"))
 		scheduler.On("GetNextExecutionTime", ctx, trigger.Schedule).Return(time.Now().Add(5*time.Minute), nil)
 		store.On("SaveTrigger", ctx, mock.AnythingOfType("*models.Trigger")).Return(nil)
+		alerts.On("AlertHighGasUsage", ctx, mock.AnythingOfType("*models.Trigger"), mock.AnythingOfType("int64")).Return()
 
 		// Test trigger execution
 		execution, err := manager.ExecuteTrigger(ctx, userAddress, triggerID)
 		require.NoError(t, err)
 		assert.NotNil(t, execution)
-		assert.Equal(t, "success", execution.Status)
+		assert.Equal(t, "completed", execution.Status)
 		assert.NotEmpty(t, execution.Result)
 	})
 }

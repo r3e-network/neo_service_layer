@@ -141,14 +141,17 @@ func TestPriceAggregator(t *testing.T) {
 			AssetID:    "NEO/USD",
 			Price:      big.NewFloat(1000),
 			Timestamp:  time.Now(),
-			Source:     "test",
-			Confidence: 0.95,
+			Source:     "oracle",
+			Confidence: 1.0,
 		}
 
 		// Setup expectations
+		store.On("GetPrice", ctx, price.AssetID).Return(nil, nil)
 		store.On("SavePrice", ctx, price).Return(nil)
 		metrics.On("RecordUpdate", ctx, price, mock.Anything).Return()
-		validator.On("ValidatePrice", ctx, price).Return(nil)
+		validator.On("ValidatePrice", ctx, mock.MatchedBy(func(p *models.Price) bool {
+			return p.AssetID == price.AssetID && p.Price.Cmp(price.Price) == 0 && p.Source == price.Source && p.Confidence == price.Confidence
+		})).Return(nil)
 		validator.On("ValidateUpdateInterval", ctx, price.AssetID, price.Timestamp).Return(nil)
 
 		// Create aggregator

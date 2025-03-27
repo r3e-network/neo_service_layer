@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/will/neo_service_layer/internal/common/config"
@@ -13,19 +14,19 @@ import (
 type Connection interface {
 	// Close closes the database connection
 	Close() error
-	
+
 	// Ping pings the database to check if it's available
 	Ping(ctx context.Context) error
-	
+
 	// Exec executes a query without returning any rows
 	Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	
+
 	// Query executes a query that returns rows
 	Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-	
+
 	// QueryRow executes a query that returns at most one row
 	QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row
-	
+
 	// Begin starts a new transaction
 	Begin(ctx context.Context) (Transaction, error)
 }
@@ -34,16 +35,16 @@ type Connection interface {
 type Transaction interface {
 	// Commit commits the transaction
 	Commit() error
-	
+
 	// Rollback rolls back the transaction
 	Rollback() error
-	
+
 	// Exec executes a query without returning any rows
 	Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	
+
 	// Query executes a query that returns rows
 	Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-	
+
 	// QueryRow executes a query that returns at most one row
 	QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
@@ -62,19 +63,22 @@ type DBTransaction struct {
 func ConnectDB(cfg *config.DatabaseConfig) (Connection, error) {
 	// Build the connection string based on the database type
 	var connStr string
-	switch cfg.Type {
+	switch cfg.Driver {
 	case "postgres":
 		connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-			cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.Name, cfg.SSLMode)
-	case "mysql":
-		connStr = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-			cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
+			cfg.Host,
+			cfg.Port,
+			cfg.User,
+			cfg.Password,
+			cfg.Name,
+			cfg.SSLMode,
+		)
 	default:
-		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
+		log.Fatalf("Unsupported database driver: %s", cfg.Driver)
 	}
 
 	// Open the database connection
-	db, err := sql.Open(cfg.Type, connStr)
+	db, err := sql.Open(cfg.Driver, connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}

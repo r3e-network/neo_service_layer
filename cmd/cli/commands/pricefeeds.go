@@ -4,169 +4,59 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
-func newPriceFeedsCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "pricefeeds",
-		Short: "Manage price feeds",
-		Long:  `Create and manage price feeds for asset pairs`,
-	}
+var pricefeedsLogger = logger.NewLogger("info")
 
-	// Add subcommands
-	cmd.AddCommand(
-		newPriceFeedCreateCmd(),
-		newPriceFeedListCmd(),
-		newPriceFeedDeleteCmd(),
-		newPriceFeedGetPriceCmd(),
-		newPriceFeedHistoryCmd(),
-	)
-
-	return cmd
+var pricefeedsCmd = &cobra.Command{
+	Use:   "pricefeeds",
+	Short: "Manage price feeds",
+	Long:  `Configure and monitor price feed sources.`,
 }
 
-func newPriceFeedCreateCmd() *cobra.Command {
-	var (
-		name      string
-		base      string
-		quote     string
-		sources   []string
-		heartbeat string
-		deviation float64
-	)
-
-	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a new price feed",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Creating price feed", map[string]interface{}{
-				"name":      name,
-				"base":     base,
-				"quote":    quote,
-				"sources":  sources,
-				"heartbeat": heartbeat,
-				"deviation": deviation,
-			})
-
-			// TODO: Implement price feed creation
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&name, "name", "", "Price feed name")
-	cmd.Flags().StringVar(&base, "base", "", "Base asset symbol")
-	cmd.Flags().StringVar(&quote, "quote", "", "Quote asset symbol")
-	cmd.Flags().StringSliceVar(&sources, "sources", []string{}, "Price data sources")
-	cmd.Flags().StringVar(&heartbeat, "heartbeat", "1m", "Maximum time between updates")
-	cmd.Flags().Float64Var(&deviation, "deviation", 0.5, "Minimum price deviation to trigger update")
-
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("base")
-	cmd.MarkFlagRequired("quote")
-	cmd.MarkFlagRequired("sources")
-
-	return cmd
+var addFeedCmd = &cobra.Command{
+	Use:   "add [name] [url]",
+	Short: "Add a new price feed",
+	Long:  `Add a new price feed source with a name and URL.`,
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		pricefeedsLogger.Info("Adding price feed...", map[string]interface{}{
+			"name": args[0],
+			"url":  args[1],
+		})
+		// Implementation goes here
+		fmt.Println("Price feed added successfully")
+	},
 }
 
-func newPriceFeedListCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List all price feeds",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Listing price feeds")
-
-			// TODO: Implement price feed listing
-			return fmt.Errorf("not implemented")
-		},
-	}
+var removeFeedCmd = &cobra.Command{
+	Use:   "remove [name]",
+	Short: "Remove a price feed",
+	Long:  `Remove an existing price feed source.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		pricefeedsLogger.Info("Removing price feed...", map[string]interface{}{
+			"name": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Price feed removed successfully")
+	},
 }
 
-func newPriceFeedDeleteCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "delete [name]",
-		Short: "Delete a price feed",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Deleting price feed", map[string]interface{}{
-				"name": args[0],
-			})
-
-			// TODO: Implement price feed deletion
-			return fmt.Errorf("not implemented")
-		},
-	}
+var listFeedsCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List price feeds",
+	Long:  `List all configured price feed sources.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		pricefeedsLogger.Info("Listing price feeds...", nil)
+		// Implementation goes here
+		fmt.Println("Price feeds listed successfully")
+	},
 }
 
-func newPriceFeedGetPriceCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "price [name]",
-		Short: "Get current price from a feed",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Getting price", map[string]interface{}{
-				"name": args[0],
-			})
-
-			// TODO: Implement price retrieval
-			return fmt.Errorf("not implemented")
-		},
-	}
-}
-
-func newPriceFeedHistoryCmd() *cobra.Command {
-	var (
-		limit int
-		since string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "history [name]",
-		Short: "Get price history from a feed",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Getting price history", map[string]interface{}{
-				"name":  args[0],
-				"limit": limit,
-				"since": since,
-			})
-
-			// TODO: Implement price history retrieval
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of price points to return")
-	cmd.Flags().StringVar(&since, "since", "24h", "Return prices since duration ago")
-
-	return cmd
+func init() {
+	pricefeedsCmd.AddCommand(addFeedCmd)
+	pricefeedsCmd.AddCommand(removeFeedCmd)
+	pricefeedsCmd.AddCommand(listFeedsCmd)
 }

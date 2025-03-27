@@ -32,86 +32,92 @@ func GetDefaultConfig() *Config {
 		Environment: "development",
 		LogLevel:    DefaultLogLevel,
 		API: APIConfig{
-			Host:              "0.0.0.0",
-			Port:              DefaultAPIPort,
-			EnableCORS:        true,
+			Host:               "0.0.0.0",
+			Port:               DefaultAPIPort,
+			EnableCORS:         true,
 			MaxRequestBodySize: DefaultAPIRequestSize,
 		},
 		Database: DatabaseConfig{
-			Type:     "postgres",
+			Driver:   "postgres",
 			Host:     "localhost",
 			Port:     DefaultDBPort,
-			Username: "postgres",
-			Password: "postgres",
 			Name:     "neo_service_layer",
+			User:     "postgres",
+			Password: "postgres",
 			SSLMode:  DefaultDBSSLMode,
 		},
 		Neo: NeoConfig{
-			RPCEndpoint:      "http://localhost:10332",
-			NetworkMagic:     860833102, // TestNet
-			WalletPath:       "wallet.json",
-			WalletPassword:   "",
-			DefaultAccount:   "",
-			RequestTimeout:   DefaultNeoRequestTimeout,
-			MaxRetryAttempts: DefaultNeoRetryAttempts,
+			Network:       "testnet",
+			RPC:           []string{"http://localhost:10332"},
+			WIF:           "",
+			GasToken:      "0xd2a4cff31913016155e38e474a2c06d08be276cf",
+			NeoToken:      "0xef4073a0f2b305a38ec4050e4d3d28bc40ea63f5",
+			BlockTime:     15,
+			Confirmations: 1,
 		},
 		Services: ServicesConfig{
 			GasBank: GasBankConfig{
-				InitialGas:           "1000000",
-				MaxAllocationPerUser: "100000",
+				InitialGas:           1000000.0,
+				RefillAmount:         100000.0,
+				RefillThreshold:      10000.0,
+				MaxAllocationPerUser: 100000.0,
+				MinAllocationAmount:  1000.0,
+				MaxAllocationTime:    24 * time.Hour,
+				CooldownPeriod:       1 * time.Hour,
 				StoreType:            DefaultGasBankStoreType,
+				MonitorInterval:      5 * time.Minute,
 			},
 			PriceFeed: PriceFeedConfig{
-				UpdateInterval:    DefaultPriceFeedInterval,
-				SupportedSymbols:  []string{"NEO", "GAS", "BTC", "ETH"},
-				DefaultHeartbeat:  DefaultPriceFeedHeartbeat,
-				MaxDeviationRate:  0.5,
-				AnswerAggregation: "median",
+				UpdateInterval: time.Duration(DefaultPriceFeedInterval) * time.Second,
+				MinDeviation:   0.5,
+				HeartbeatTime:  time.Duration(DefaultPriceFeedHeartbeat) * time.Second,
+				Sources:        []string{"binance", "huobi", "okex"},
 			},
 			Automation: AutomationConfig{
-				CheckInterval:   300,
-				RetryAttempts:   3,
-				RetryDelay:      15,
-				GasBuffer:       "10000",
-				KeeperRegistry:  "",
+				CheckInterval:    5 * time.Minute,
+				RetryDelay:       15 * time.Second,
+				MaxExecutionTime: 5 * time.Minute,
+				MaxRetries:       3,
 			},
 			Functions: FunctionsConfig{
-				MaxExecutionTime: 30,
-				DefaultRuntime:   "javascript",
-				MaxMemory:        128,
-				MaxCPU:           1,
+				ExecutionWindow: 30 * time.Second,
+				MaxMemory:       128,
+				MaxTimeout:      30 * time.Second,
+				DefaultRuntime:  "javascript",
 			},
 			Trigger: TriggerConfig{
 				MaxTriggers:     10,
 				MaxExecutions:   100,
-				ExecutionWindow: 86400,
+				RetentionPeriod: 24 * time.Hour,
 			},
 			Secrets: SecretsConfig{
-				EncryptionKey:       "",
-				RotationInterval:    DefaultSecretRotation,
-				MaxSecretsPerUser:   100,
-				MaxSecretSize:       DefaultMaxSecretSize,
-				EnableAccessLogging: true,
+				RotationInterval: time.Duration(DefaultSecretRotation) * time.Second,
+				StoreType:        "memory",
+				EncryptionKey:    "",
 			},
 			Metrics: MetricsConfig{
-				CollectionInterval: DefaultMetricsInterval,
-				RetentionPeriod:    DefaultMetricsRetention,
-				StorageBackend:     DefaultMetricsBackend,
+				CollectionInterval: time.Duration(DefaultMetricsInterval) * time.Second,
+				RetentionPeriod:    time.Duration(DefaultMetricsRetention) * time.Second,
+				ExportFormat:       "prometheus",
 			},
 			Logging: LoggingConfig{
-				LogLevel:          DefaultLogLevel,
-				EnableJSONLogs:    true,
-				LogFilePath:       "/var/log/neo-service-layer/app.log",
-				MaxSizeInMB:       DefaultLogFileSize,
-				RetainedFiles:     DefaultLogRetention,
-				EnableCompression: true,
+				Format:          "json",
+				RetentionPeriod: time.Duration(DefaultLogRetention) * 24 * time.Hour,
+				MaxSize:         DefaultLogFileSize,
+				MaxBackups:      DefaultLogRetention,
+			},
+			Account: AccountConfig{
+				MaxBatchSize:     50,
+				DefaultGasLimit:  1000000,
+				SignatureTimeout: 60 * time.Second,
+				RecoveryWindow:   24 * time.Hour,
+				TEERequired:      true,
 			},
 		},
 		Security: SecurityConfig{
-			TEEEnabled:     true,
-			APIKeyRequired: true,
-			JWTSecret:      "",
-			JWTExpiryHours: DefaultJWTExpiry,
+			JWTSecret:       "default-secret-key",
+			TokenExpiration: time.Duration(DefaultJWTExpiry) * time.Hour,
+			AllowedOrigins:  []string{"*"},
 		},
 	}
 }
@@ -121,11 +127,6 @@ func GetDevConfig() *Config {
 	config := GetDefaultConfig()
 	config.Environment = "development"
 	config.LogLevel = "debug"
-	config.API.Port = 8081
-	config.API.EnableCORS = true
-	config.Database.Host = "localhost"
-	config.Services.Logging.LogFilePath = "./logs/app.log"
-	config.Security.APIKeyRequired = false
 	return config
 }
 
@@ -134,11 +135,7 @@ func GetTestConfig() *Config {
 	config := GetDefaultConfig()
 	config.Environment = "testing"
 	config.LogLevel = "debug"
-	config.API.Port = 8082
-	config.Database.Host = "localhost"
 	config.Database.Name = "neo_service_layer_test"
-	config.Services.Logging.LogFilePath = "./logs/test.log"
-	config.Security.APIKeyRequired = false
 	return config
 }
 
@@ -147,9 +144,7 @@ func GetProdConfig() *Config {
 	config := GetDefaultConfig()
 	config.Environment = "production"
 	config.LogLevel = "info"
-	config.API.EnableCORS = false
-	config.Security.APIKeyRequired = true
-	config.Security.TEEEnabled = true
+	config.Security.AllowedOrigins = []string{}
 	return config
 }
 
@@ -182,29 +177,29 @@ func GetDefaultSchedulerSettings() map[string]interface{} {
 // GetDefaultAPISettings returns default API settings
 func GetDefaultAPISettings() map[string]interface{} {
 	return map[string]interface{}{
-		"timeout":           time.Second * 30,
-		"idle_timeout":      time.Second * 120,
-		"read_timeout":      time.Second * 15,
-		"write_timeout":     time.Second * 15,
-		"max_header_bytes":  1 << 20, // 1MB
-		"max_request_size":  10 << 20, // 10MB
-		"max_conns_per_ip":  100,
-		"use_compression":   true,
-		"use_tls":           true,
-		"rate_limit":        100,
-		"rate_limit_burst":  200,
-		"response_timeout":  time.Second * 30,
-		"shutdown_timeout":  time.Second * 30,
+		"timeout":          time.Second * 30,
+		"idle_timeout":     time.Second * 120,
+		"read_timeout":     time.Second * 15,
+		"write_timeout":    time.Second * 15,
+		"max_header_bytes": 1 << 20,  // 1MB
+		"max_request_size": 10 << 20, // 10MB
+		"max_conns_per_ip": 100,
+		"use_compression":  true,
+		"use_tls":          true,
+		"rate_limit":       100,
+		"rate_limit_burst": 200,
+		"response_timeout": time.Second * 30,
+		"shutdown_timeout": time.Second * 30,
 	}
 }
 
 // GetDefaultWorkerSettings returns default worker settings
 func GetDefaultWorkerSettings() map[string]interface{} {
 	return map[string]interface{}{
-		"concurrency":       10,
-		"max_retries":       3,
-		"retry_delay":       time.Second * 5,
-		"max_queue_size":    1000,
+		"concurrency":        10,
+		"max_retries":        3,
+		"retry_delay":        time.Second * 5,
+		"max_queue_size":     1000,
 		"processing_timeout": time.Minute * 5,
 		"heartbeat_interval": time.Minute * 1,
 		"shutdown_timeout":   time.Second * 30,

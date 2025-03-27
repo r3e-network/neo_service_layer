@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/nspcc-dev/neo-go/pkg/util"
+	"github.com/nspcc-dev/neo-go/pkg/encoding/address"
 	"golang.org/x/time/rate"
 )
 
@@ -83,7 +83,7 @@ func AddressFromToken(next http.Handler) http.Handler {
 		}
 
 		// Convert address to Uint160
-		scriptHash, err := util.Uint160DecodeStringLE(addressStr)
+		scriptHash, err := address.StringToUint160(addressStr)
 		if err != nil {
 			http.Error(w, "invalid address in token", http.StatusUnauthorized)
 			return

@@ -156,6 +156,9 @@ func (am *AllocationManager) UseGas(ctx context.Context, userAddress util.Uint16
 
 	// Check if expired
 	if allocation.IsExpired() {
+		if am.alertMgr != nil {
+			am.alertMgr.AlertAllocationExpired(ctx, allocation)
+		}
 		return errors.New("gas allocation has expired")
 	}
 

@@ -30,11 +30,6 @@ func newSecretSetCmd() *cobra.Command {
 		Short: "Set a secret value",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
 			log := getLogger()
 			log.Info("Setting secret", map[string]interface{}{
 				"name": args[0],
@@ -52,11 +47,6 @@ func newSecretGetCmd() *cobra.Command {
 		Short: "Get a secret value",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
 			log := getLogger()
 			log.Info("Getting secret", map[string]interface{}{
 				"name": args[0],
@@ -73,13 +63,8 @@ func newSecretListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all secrets",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
 			log := getLogger()
-			log.Info("Listing secrets")
+			log.Info("Listing secrets", nil)
 
 			// TODO: Implement secret listing
 			return fmt.Errorf("not implemented")
@@ -93,11 +78,6 @@ func newSecretDeleteCmd() *cobra.Command {
 		Short: "Delete a secret",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
 			log := getLogger()
 			log.Info("Deleting secret", map[string]interface{}{
 				"name": args[0],

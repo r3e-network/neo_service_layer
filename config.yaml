@@ -85,3 +85,10 @@ security:
   tokenExpiration: 24h
   allowedOrigins:
     - "*"
+
+account:
+  maxBatchSize: 50
+  defaultGasLimit: 1000
+  signatureTimeout: 60s
+  recoveryWindow: 24h
+  teeRequired: true

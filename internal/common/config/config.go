@@ -51,6 +51,7 @@ type ServicesConfig struct {
 	Secrets    SecretsConfig    `yaml:"secrets"`
 	Metrics    MetricsConfig    `yaml:"metrics"`
 	Logging    LoggingConfig    `yaml:"logging"`
+	Account    AccountConfig    `yaml:"account"`
 }
 
 // GasBankConfig represents gas bank configuration
@@ -124,6 +125,15 @@ type SecurityConfig struct {
 	JWTSecret       string        `yaml:"jwtSecret"`
 	TokenExpiration time.Duration `yaml:"tokenExpiration"`
 	AllowedOrigins  []string      `yaml:"allowedOrigins"`
+}
+
+// AccountConfig represents account service configuration
+type AccountConfig struct {
+	MaxBatchSize     int           `yaml:"maxBatchSize"`
+	DefaultGasLimit  int64         `yaml:"defaultGasLimit"`
+	SignatureTimeout time.Duration `yaml:"signatureTimeout"`
+	RecoveryWindow   time.Duration `yaml:"recoveryWindow"`
+	TEERequired      bool          `yaml:"teeRequired"`
 }
 
 // LoadConfig loads configuration from a file
@@ -211,6 +221,13 @@ func DefaultConfig() *Config {
 				RetentionPeriod: 90 * 24 * time.Hour,
 				MaxSize:         100,
 				MaxBackups:      10,
+			},
+			Account: AccountConfig{
+				MaxBatchSize:     100,
+				DefaultGasLimit:  1000000,
+				SignatureTimeout: 30 * time.Second,
+				RecoveryWindow:   7 * 24 * time.Hour,
+				TEERequired:      true,
 			},
 		},
 		Security: SecurityConfig{

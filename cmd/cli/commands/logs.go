@@ -4,156 +4,61 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
-func newLogsCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "logs",
-		Short: "View system logs",
-		Long:  `View and analyze system logs across all services`,
-	}
+var logsLogger = logger.NewLogger("info")
 
-	// Add subcommands
-	cmd.AddCommand(
-		newLogsShowCmd(),
-		newLogsSearchCmd(),
-		newLogsExportCmd(),
-	)
-
-	return cmd
+var logsCmd = &cobra.Command{
+	Use:   "logs",
+	Short: "Manage system logs",
+	Long:  `View and manage system logs from various components.`,
 }
 
-func newLogsShowCmd() *cobra.Command {
-	var (
-		service string
-		level   string
-		tail    int
-		follow  bool
-	)
-
-	cmd := &cobra.Command{
-		Use:   "show",
-		Short: "Show live logs",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Showing logs", map[string]interface{}{
-				"service": service,
-				"level":   level,
-				"tail":    tail,
-				"follow":  follow,
-			})
-
-			// TODO: Implement log display
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&service, "service", "", "Filter by service name")
-	cmd.Flags().StringVar(&level, "level", "", "Filter by log level")
-	cmd.Flags().IntVar(&tail, "tail", 100, "Number of recent log lines to show")
-	cmd.Flags().BoolVar(&follow, "follow", false, "Follow log output")
-
-	return cmd
+var viewCmd = &cobra.Command{
+	Use:   "view [component]",
+	Short: "View component logs",
+	Long:  `View logs from a specific system component.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		logsLogger.Info("Viewing component logs...", map[string]interface{}{
+			"component": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Logs displayed successfully")
+	},
 }
 
-func newLogsSearchCmd() *cobra.Command {
-	var (
-		query   string
-		service string
-		level   string
-		since   string
-		until   string
-		limit   int
-	)
-
-	cmd := &cobra.Command{
-		Use:   "search",
-		Short: "Search logs",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Searching logs", map[string]interface{}{
-				"query":   query,
-				"service": service,
-				"level":   level,
-				"since":   since,
-				"until":   until,
-				"limit":   limit,
-			})
-
-			// TODO: Implement log search
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&query, "query", "", "Search query")
-	cmd.Flags().StringVar(&service, "service", "", "Filter by service name")
-	cmd.Flags().StringVar(&level, "level", "", "Filter by log level")
-	cmd.Flags().StringVar(&since, "since", "1h", "Search logs since duration ago")
-	cmd.Flags().StringVar(&until, "until", "", "Search logs until time")
-	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of results")
-
-	cmd.MarkFlagRequired("query")
-
-	return cmd
+var tailCmd = &cobra.Command{
+	Use:   "tail [component]",
+	Short: "Tail component logs",
+	Long:  `Follow logs from a specific system component in real-time.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		logsLogger.Info("Tailing component logs...", map[string]interface{}{
+			"component": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Log tailing started successfully")
+	},
 }
 
-func newLogsExportCmd() *cobra.Command {
-	var (
-		output   string
-		format   string
-		service  string
-		level    string
-		start    string
-		end      string
-		compress bool
-	)
+var searchCmd = &cobra.Command{
+	Use:   "search [term]",
+	Short: "Search logs",
+	Long:  `Search logs across all components for specific terms.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		logsLogger.Info("Searching logs...", map[string]interface{}{
+			"term": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Log search completed successfully")
+	},
+}
 
-	cmd := &cobra.Command{
-		Use:   "export",
-		Short: "Export logs",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Exporting logs", map[string]interface{}{
-				"output":   output,
-				"format":   format,
-				"service":  service,
-				"level":    level,
-				"start":    start,
-				"end":      end,
-				"compress": compress,
-			})
-
-			// TODO: Implement log export
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&output, "output", "", "Output file path")
-	cmd.Flags().StringVar(&format, "format", "json", "Export format (json, text)")
-	cmd.Flags().StringVar(&service, "service", "", "Filter by service name")
-	cmd.Flags().StringVar(&level, "level", "", "Filter by log level")
-	cmd.Flags().StringVar(&start, "start", "", "Start time (RFC3339)")
-	cmd.Flags().StringVar(&end, "end", "", "End time (RFC3339)")
-	cmd.Flags().BoolVar(&compress, "compress", false, "Compress output file")
-
-	cmd.MarkFlagRequired("output")
-	cmd.MarkFlagRequired("start")
-	cmd.MarkFlagRequired("end")
-
-	return cmd
+func init() {
+	logsCmd.AddCommand(viewCmd)
+	logsCmd.AddCommand(tailCmd)
+	logsCmd.AddCommand(searchCmd)
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/jwtauth/v5"
+	"github.com/nspcc-dev/neo-go/pkg/encoding/address"
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -325,6 +328,34 @@ func setupTestService(t *testing.T) (*Service, *mockDependencies) {
 	return service, mocks
 }
 
+// Helper function to create an authenticated request
+func createAuthenticatedRequest(t *testing.T, service *Service, method, path string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, path, body)
+
+	// Create a valid JWT token
+	claims := map[string]interface{}{
+		"address": "NYxb4fSZVKAz8YsgaPK2WkT3KcAE9b3Vag",
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+	}
+	_, tokenString, err := service.tokenAuth.Encode(claims)
+	require.NoError(t, err)
+
+	// Set Authorization header
+	req.Header.Set("Authorization", "Bearer "+tokenString)
+
+	// Set JWT context
+	token, err := service.tokenAuth.Decode(tokenString)
+	require.NoError(t, err)
+	ctx := jwtauth.NewContext(req.Context(), token, nil)
+
+	// Set address in context
+	scriptHash, err := address.StringToUint160(claims["address"].(string))
+	require.NoError(t, err)
+	ctx = context.WithValue(ctx, "address", scriptHash)
+
+	return req.WithContext(ctx)
+}
+
 func TestAPIService(t *testing.T) {
 	service, mocks := setupTestService(t)
 
@@ -332,20 +363,12 @@ func TestAPIService(t *testing.T) {
 	triggerService := mocks.TriggerService.(*mockTriggerService)
 	triggerService.On("GetTriggerMetrics", mock.Anything, mock.Anything).Return(&triggermodels.TriggerMetrics{}, nil)
 
-	// Create a valid JWT token
-	_, tokenString, err := service.tokenAuth.Encode(map[string]interface{}{
-		"address": "NYxb4fSZVKAz8YsgaPK2WkT3KcAE9b3Vag",
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
-	// Test trigger metrics endpoint with auth token
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/triggers/123/metrics", nil)
-	req.Header.Set("Authorization", "Bearer "+tokenString)
+	// Test trigger metrics endpoint with auth
+	req := createAuthenticatedRequest(t, service, http.MethodGet, "/api/v1/triggers/123/metrics", nil)
 	w := httptest.NewRecorder()
 	service.router.ServeHTTP(w, req)
 
-	// Should get OK with auth token
+	// Should get OK with auth
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test health endpoint
@@ -356,7 +379,7 @@ func TestAPIService(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var healthResponse SystemHealthResponse
-	err = json.Unmarshal(w.Body.Bytes(), &healthResponse)
+	err := json.Unmarshal(w.Body.Bytes(), &healthResponse)
 	require.NoError(t, err)
 	require.True(t, healthResponse.Healthy)
 	require.Len(t, healthResponse.Services, 6) // Number of services registered
@@ -372,20 +395,12 @@ func TestAuthFlow(t *testing.T) {
 	triggerService := mocks.TriggerService.(*mockTriggerService)
 	triggerService.On("GetTriggerMetrics", mock.Anything, mock.Anything).Return(&triggermodels.TriggerMetrics{}, nil)
 
-	// Create a valid JWT token
-	_, tokenString, err := service.tokenAuth.Encode(map[string]interface{}{
-		"address": "NYxb4fSZVKAz8YsgaPK2WkT3KcAE9b3Vag",
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
-	// Test trigger metrics endpoint with auth token
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/triggers/123/metrics", nil)
-	req.Header.Set("Authorization", "Bearer "+tokenString)
+	// Test trigger metrics endpoint with auth
+	req := createAuthenticatedRequest(t, service, http.MethodGet, "/api/v1/triggers/123/metrics", nil)
 	w := httptest.NewRecorder()
 	service.router.ServeHTTP(w, req)
 
-	// Should get OK with auth token
+	// Should get OK with auth
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test signature verification endpoint
@@ -437,16 +452,8 @@ func TestService_GetTriggerExecutions(t *testing.T) {
 	// Should get unauthorized without auth token
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	// Create a valid JWT token
-	_, tokenString, err := service.tokenAuth.Encode(map[string]interface{}{
-		"address": "NYxb4fSZVKAz8YsgaPK2WkT3KcAE9b3Vag",
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
 	// Test with auth token
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/triggers/123/executions", nil)
-	req.Header.Set("Authorization", "Bearer "+tokenString)
+	req = createAuthenticatedRequest(t, service, http.MethodGet, "/api/v1/triggers/123/executions", nil)
 	w = httptest.NewRecorder()
 	service.router.ServeHTTP(w, req)
 
@@ -472,16 +479,8 @@ func TestService_GetTriggerMetrics(t *testing.T) {
 	// Should get unauthorized without auth token
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	// Create a valid JWT token
-	_, tokenString, err := service.tokenAuth.Encode(map[string]interface{}{
-		"address": "NYxb4fSZVKAz8YsgaPK2WkT3KcAE9b3Vag",
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
 	// Test with auth token
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/triggers/123/metrics", nil)
-	req.Header.Set("Authorization", "Bearer "+tokenString)
+	req = createAuthenticatedRequest(t, service, http.MethodGet, "/api/v1/triggers/123/metrics", nil)
 	w = httptest.NewRecorder()
 	service.router.ServeHTTP(w, req)
 

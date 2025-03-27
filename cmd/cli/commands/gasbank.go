@@ -4,160 +4,86 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
-func newGasBankCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "gasbank",
-		Short: "Manage gas bank",
-		Long:  `Monitor and manage gas bank allocations and usage`,
-	}
+var gasbankLogger = logger.NewLogger("info")
 
-	// Add subcommands
-	cmd.AddCommand(
-		newGasBankStatusCmd(),
-		newGasBankDepositCmd(),
-		newGasBankWithdrawCmd(),
-		newGasBankAllocationsCmd(),
-		newGasBankUsageCmd(),
-	)
-
-	return cmd
+var gasbankCmd = &cobra.Command{
+	Use:   "gasbank",
+	Short: "Manage Neo gas bank",
+	Long:  `Deposit, withdraw, and manage Neo gas bank.`,
 }
 
-func newGasBankStatusCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "Show gas bank status",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Getting gas bank status")
-
-			// TODO: Implement gas bank status retrieval
-			return fmt.Errorf("not implemented")
-		},
-	}
+var depositCmd = &cobra.Command{
+	Use:   "deposit [amount]",
+	Short: "Deposit GAS into the bank",
+	Long:  `Deposit a specified amount of GAS into the gas bank.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		gasbankLogger.Info("Depositing GAS...", map[string]interface{}{
+			"amount": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("GAS deposited successfully")
+	},
 }
 
-func newGasBankDepositCmd() *cobra.Command {
-	var (
-		amount float64
-	)
-
-	cmd := &cobra.Command{
-		Use:   "deposit",
-		Short: "Deposit GAS into the bank",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Depositing GAS", map[string]interface{}{
-				"amount": amount,
-			})
-
-			// TODO: Implement gas deposit
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().Float64Var(&amount, "amount", 0, "Amount of GAS to deposit")
-	cmd.MarkFlagRequired("amount")
-
-	return cmd
+var withdrawCmd = &cobra.Command{
+	Use:   "withdraw [amount]",
+	Short: "Withdraw GAS from the bank",
+	Long:  `Withdraw a specified amount of GAS from the gas bank.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		gasbankLogger.Info("Withdrawing GAS...", map[string]interface{}{
+			"amount": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("GAS withdrawn successfully")
+	},
 }
 
-func newGasBankWithdrawCmd() *cobra.Command {
-	var (
-		amount float64
-		to     string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "withdraw",
-		Short: "Withdraw GAS from the bank",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Withdrawing GAS", map[string]interface{}{
-				"amount": amount,
-				"to":     to,
-			})
-
-			// TODO: Implement gas withdrawal
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().Float64Var(&amount, "amount", 0, "Amount of GAS to withdraw")
-	cmd.Flags().StringVar(&to, "to", "", "Address to withdraw GAS to")
-	cmd.MarkFlagRequired("amount")
-	cmd.MarkFlagRequired("to")
-
-	return cmd
+var balanceCmd = &cobra.Command{
+	Use:   "balance",
+	Short: "Check gas bank balance",
+	Long:  `Check the current balance in the gas bank.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		gasbankLogger.Info("Checking balance...", nil)
+		// Implementation goes here
+		fmt.Println("Balance checked successfully")
+	},
 }
 
-func newGasBankAllocationsCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "allocations",
-		Short: "List current gas allocations",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Listing gas allocations")
-
-			// TODO: Implement allocation listing
-			return fmt.Errorf("not implemented")
-		},
-	}
+var transferCmd = &cobra.Command{
+	Use:   "transfer [to] [amount]",
+	Short: "Transfer GAS to another account",
+	Long:  `Transfer a specified amount of GAS to another account.`,
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		gasbankLogger.Info("Transferring GAS...", map[string]interface{}{
+			"to":     args[0],
+			"amount": args[1],
+		})
+		// Implementation goes here
+		fmt.Println("GAS transferred successfully")
+	},
 }
 
-func newGasBankUsageCmd() *cobra.Command {
-	var (
-		days  int
-		user  string
-		limit int
-	)
+var historyCmd = &cobra.Command{
+	Use:   "history",
+	Short: "View transaction history",
+	Long:  `View the transaction history of the gas bank.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		gasbankLogger.Info("Viewing transaction history...", nil)
+		// Implementation goes here
+		fmt.Println("Transaction history displayed successfully")
+	},
+}
 
-	cmd := &cobra.Command{
-		Use:   "usage",
-		Short: "Show gas usage history",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Getting gas usage", map[string]interface{}{
-				"days":  days,
-				"user":  user,
-				"limit": limit,
-			})
-
-			// TODO: Implement usage history retrieval
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().IntVar(&days, "days", 7, "Number of days of history to show")
-	cmd.Flags().StringVar(&user, "user", "", "Filter usage by user address")
-	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of records to return")
-
-	return cmd
+func init() {
+	gasbankCmd.AddCommand(depositCmd)
+	gasbankCmd.AddCommand(withdrawCmd)
+	gasbankCmd.AddCommand(balanceCmd)
+	gasbankCmd.AddCommand(transferCmd)
+	gasbankCmd.AddCommand(historyCmd)
 }

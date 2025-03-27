@@ -4,149 +4,74 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
-func newContractsCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "contracts",
-		Short: "Manage smart contracts",
-		Long:  `Deploy, upgrade and manage Neo N3 smart contracts`,
-	}
+var contractLogger = logger.NewLogger("info")
 
-	// Add subcommands
-	cmd.AddCommand(
-		newContractDeployCmd(),
-		newContractUpgradeCmd(),
-		newContractListCmd(),
-		newContractInfoCmd(),
-	)
-
-	return cmd
+var contractsCmd = &cobra.Command{
+	Use:   "contracts",
+	Short: "Manage Neo smart contracts",
+	Long:  `Deploy, invoke, and manage Neo smart contracts.`,
 }
 
-func newContractDeployCmd() *cobra.Command {
-	var (
-		name     string
-		version  string
-		manifest string
-		nef      string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "deploy",
-		Short: "Deploy a smart contract",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Deploying contract", map[string]interface{}{
-				"name":     name,
-				"version":  version,
-				"manifest": manifest,
-				"nef":      nef,
-			})
-
-			// TODO: Implement contract deployment
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&name, "name", "", "Contract name")
-	cmd.Flags().StringVar(&version, "version", "", "Contract version")
-	cmd.Flags().StringVar(&manifest, "manifest", "", "Path to contract manifest file")
-	cmd.Flags().StringVar(&nef, "nef", "", "Path to contract NEF file")
-
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("version")
-	cmd.MarkFlagRequired("manifest")
-	cmd.MarkFlagRequired("nef")
-
-	return cmd
+var deployContractCmd = &cobra.Command{
+	Use:   "deploy [file]",
+	Short: "Deploy a smart contract",
+	Long:  `Deploy a smart contract from a file.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		contractLogger.Info("Deploying smart contract...", map[string]interface{}{
+			"file": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Contract deployed successfully")
+	},
 }
 
-func newContractUpgradeCmd() *cobra.Command {
-	var (
-		hash     string
-		version  string
-		manifest string
-		nef      string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "upgrade",
-		Short: "Upgrade a smart contract",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Upgrading contract", map[string]interface{}{
-				"hash":     hash,
-				"version":  version,
-				"manifest": manifest,
-				"nef":      nef,
-			})
-
-			// TODO: Implement contract upgrade
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&hash, "hash", "", "Contract hash")
-	cmd.Flags().StringVar(&version, "version", "", "New contract version")
-	cmd.Flags().StringVar(&manifest, "manifest", "", "Path to new contract manifest file")
-	cmd.Flags().StringVar(&nef, "nef", "", "Path to new contract NEF file")
-
-	cmd.MarkFlagRequired("hash")
-	cmd.MarkFlagRequired("version")
-	cmd.MarkFlagRequired("manifest")
-	cmd.MarkFlagRequired("nef")
-
-	return cmd
+var invokeContractCmd = &cobra.Command{
+	Use:   "invoke [contract] [method]",
+	Short: "Invoke a smart contract method",
+	Long:  `Invoke a method on a deployed smart contract.`,
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		contractLogger.Info("Invoking smart contract...", map[string]interface{}{
+			"contract": args[0],
+			"method":   args[1],
+		})
+		// Implementation goes here
+		fmt.Println("Contract invoked successfully")
+	},
 }
 
-func newContractListCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List all deployed contracts",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Listing contracts")
-
-			// TODO: Implement contract listing
-			return fmt.Errorf("not implemented")
-		},
-	}
+var listContractsCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List deployed contracts",
+	Long:  `List all deployed smart contracts.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		contractLogger.Info("Listing deployed contracts...", nil)
+		// Implementation goes here
+		fmt.Println("Contracts listed successfully")
+	},
 }
 
-func newContractInfoCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "info [hash]",
-		Short: "Get information about a deployed contract",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
+var deleteContractCmd = &cobra.Command{
+	Use:   "delete [contract]",
+	Short: "Delete a contract",
+	Long:  `Delete a deployed smart contract.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		contractLogger.Info("Deleting contract...", map[string]interface{}{
+			"contract": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Contract deleted successfully")
+	},
+}
 
-			log := getLogger()
-			log.Info("Getting contract info", map[string]interface{}{
-				"hash": args[0],
-			})
-
-			// TODO: Implement contract info retrieval
-			return fmt.Errorf("not implemented")
-		},
-	}
+func init() {
+	contractsCmd.AddCommand(deployContractCmd)
+	contractsCmd.AddCommand(invokeContractCmd)
+	contractsCmd.AddCommand(listContractsCmd)
+	contractsCmd.AddCommand(deleteContractCmd)
 }

@@ -301,6 +301,33 @@ func TestAPIServiceIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 
+	// Create a trigger
+	trigger := &triggermodels.Trigger{
+		Name:        "Test Trigger",
+		Description: "A test trigger",
+		Status:      "active",
+	}
+	createdTrigger, err := mockTriggerService.CreateTrigger(ctx, userAddress, trigger)
+	require.NoError(t, err)
+	require.NotNil(t, createdTrigger)
+
+	// List triggers
+	triggers, err := mockTriggerService.ListTriggers(ctx, userAddress)
+	require.NoError(t, err)
+	require.Len(t, triggers, 1)
+
+	// Get gas balance
+	allocation, err := mockGasBankService.GetAllocation(ctx, userAddress)
+	require.NoError(t, err)
+	require.NotNil(t, allocation)
+	require.Equal(t, big.NewInt(1000000), allocation.Amount)
+
+	// Get price
+	price, err := mockPriceFeedService.GetPrice(ctx, "NEO/USD")
+	require.NoError(t, err)
+	require.NotNil(t, price)
+	require.Equal(t, big.NewFloat(50), price.Price)
+
 	// Verify mocks were called as expected
 	mockGasBankService.AssertExpectations(t)
 	mockPriceFeedService.AssertExpectations(t)

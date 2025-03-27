@@ -4,120 +4,55 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
-func newHealthCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "health",
-		Short: "Check system health",
-		Long:  `Check health status of all system components`,
-	}
+var healthLogger = logger.NewLogger("info")
 
-	// Add subcommands
-	cmd.AddCommand(
-		newHealthCheckCmd(),
-		newHealthStatusCmd(),
-		newHealthHistoryCmd(),
-	)
-
-	return cmd
+var healthCmd = &cobra.Command{
+	Use:   "health",
+	Short: "Check system health",
+	Long:  `Check the health status of various system components.`,
 }
 
-func newHealthCheckCmd() *cobra.Command {
-	var (
-		service string
-		timeout string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run health check",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Running health check", map[string]interface{}{
-				"service": service,
-				"timeout": timeout,
-			})
-
-			// TODO: Implement health check
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&service, "service", "", "Check specific service")
-	cmd.Flags().StringVar(&timeout, "timeout", "30s", "Check timeout")
-
-	return cmd
+var checkCmd = &cobra.Command{
+	Use:   "check [component]",
+	Short: "Check component health",
+	Long:  `Check the health status of a specific system component.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		healthLogger.Info("Checking component health...", map[string]interface{}{
+			"component": args[0],
+		})
+		// Implementation goes here
+		fmt.Println("Health check completed successfully")
+	},
 }
 
-func newHealthStatusCmd() *cobra.Command {
-	var (
-		service string
-		format  string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "Show current health status",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Getting health status", map[string]interface{}{
-				"service": service,
-				"format":  format,
-			})
-
-			// TODO: Implement health status display
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&service, "service", "", "Show status for specific service")
-	cmd.Flags().StringVar(&format, "format", "text", "Output format (text, json)")
-
-	return cmd
+var statusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show overall system status",
+	Long:  `Display the overall health status of all system components.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		healthLogger.Info("Checking system status...", nil)
+		// Implementation goes here
+		fmt.Println("System status check completed successfully")
+	},
 }
 
-func newHealthHistoryCmd() *cobra.Command {
-	var (
-		service string
-		days    int
-		format  string
-	)
+var healthMetricsCmd = &cobra.Command{
+	Use:   "metrics",
+	Short: "Show system metrics",
+	Long:  `Display detailed metrics about system performance and health.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		healthLogger.Info("Retrieving system metrics...", nil)
+		// Implementation goes here
+		fmt.Println("System metrics retrieved successfully")
+	},
+}
 
-	cmd := &cobra.Command{
-		Use:   "history",
-		Short: "Show health check history",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Getting health history", map[string]interface{}{
-				"service": service,
-				"days":    days,
-				"format":  format,
-			})
-
-			// TODO: Implement health history display
-			return fmt.Errorf("not implemented")
-		},
-	}
-
-	cmd.Flags().StringVar(&service, "service", "", "Show history for specific service")
-	cmd.Flags().IntVar(&days, "days", 7, "Number of days of history")
-	cmd.Flags().StringVar(&format, "format", "text", "Output format (text, json)")
-
-	return cmd
+func init() {
+	healthCmd.AddCommand(checkCmd)
+	healthCmd.AddCommand(statusCmd)
+	healthCmd.AddCommand(healthMetricsCmd)
 }

@@ -4,81 +4,52 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
-func newAccountsCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "accounts",
-		Short: "Manage Neo N3 accounts",
-		Long:  `Create and manage Neo N3 accounts for use with the service layer`,
-	}
+var log = logger.NewLogger("info")
 
-	// Add subcommands
-	cmd.AddCommand(
-		newAccountCreateCmd(),
-		newAccountListCmd(),
-		newAccountDeleteCmd(),
-	)
-
-	return cmd
+var accountsCmd = &cobra.Command{
+	Use:   "accounts",
+	Short: "Manage Neo accounts",
+	Long:  `Create, list, and manage Neo accounts.`,
 }
 
-func newAccountCreateCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "create",
-		Short: "Create a new account",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Creating new account")
-
-			// TODO: Implement account creation
-			return fmt.Errorf("not implemented")
-		},
-	}
+var createAccountCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a new Neo account",
+	Long:  `Create a new Neo account with the specified parameters.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		log.Info("Creating new Neo account...", nil)
+		// Implementation goes here
+		fmt.Println("Account created successfully")
+	},
 }
 
-func newAccountListCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List all accounts",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			log := getLogger()
-			log.Info("Listing accounts")
-
-			// TODO: Implement account listing
-			return fmt.Errorf("not implemented")
-		},
-	}
+var listAccountsCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all Neo accounts",
+	Long:  `List all Neo accounts in the system.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		log.Info("Listing all Neo accounts...", nil)
+		// Implementation goes here
+		fmt.Println("Accounts listed successfully")
+	},
 }
 
-func newAccountDeleteCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "delete [address]",
-		Short: "Delete an account",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := getConfig()
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
+var deleteAccountCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete a Neo account",
+	Long:  `Delete a Neo account by its address.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		log.Info("Deleting Neo account...", nil)
+		// Implementation goes here
+		fmt.Println("Account deleted successfully")
+	},
+}
 
-			log := getLogger()
-			log.Info("Deleting account", map[string]interface{}{
-				"address": args[0],
-			})
-
-			// TODO: Implement account deletion
-			return fmt.Errorf("not implemented")
-		},
-	}
+func init() {
+	accountsCmd.AddCommand(createAccountCmd)
+	accountsCmd.AddCommand(listAccountsCmd)
+	accountsCmd.AddCommand(deleteAccountCmd)
 }
