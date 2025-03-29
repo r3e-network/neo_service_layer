@@ -200,6 +200,7 @@ func initGasBankService(ctx context.Context, cfg *config.Config) (*gasbank.Servi
 		CooldownPeriod:          5 * time.Minute,
 		ExpirationCheckInterval: 15 * time.Minute,
 		MonitorInterval:         5 * time.Minute,
+		AlertConfig:             gasbank.DefaultAlertConfig(), // Fix: Initialize AlertConfig to prevent nil pointer dereference
 	}
 	return gasbank.NewService(ctx, gasBankConfig)
 }

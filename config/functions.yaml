@@ -1,0 +1,105 @@
+# Functions Service Configuration
+
+# Runtime Configuration
+runtime:
+  type: "tee" # tee, docker, or native
+  tee:
+    provider: "azure_confidential_computing"
+    attestation:
+      url: ${TEE_ATTESTATION_URL}
+      token: ${TEE_ATTESTATION_TOKEN}
+    memory_limit: "512MB"
+    cpu_limit: "1.0"
+  docker:
+    image: "neo-function-runtime:latest"
+    memory_limit: "512MB"
+    cpu_limit: "1.0"
+    network: "none"
+
+# Function Execution
+execution:
+  timeout: 60s
+  max_concurrent: 100
+  retry:
+    max_attempts: 3
+    initial_interval: 1s
+    max_interval: 10s
+    multiplier: 2.0
+  queue:
+    type: "redis"
+    max_size: 1000
+    batch_size: 10
+
+# Function Storage
+storage:
+  type: "postgres" # postgres or s3
+  postgres:
+    table_prefix: "function_"
+  s3:
+    bucket: ${FUNCTION_STORAGE_BUCKET}
+    region: ${AWS_REGION}
+    access_key: ${AWS_ACCESS_KEY}
+    secret_key: ${AWS_SECRET_KEY}
+
+# Function Validation
+validation:
+  max_size: 10485760 # 10MB
+  allowed_languages:
+    - javascript
+    - python
+    - golang
+  banned_imports:
+    - os
+    - sys
+    - subprocess
+  security_scan:
+    enabled: true
+    provider: "snyk"
+
+# Function Metrics
+metrics:
+  enabled: true
+  collection_interval: 10s
+  retention_period: 30d
+  exporters:
+    - type: "prometheus"
+      endpoint: "/metrics"
+    - type: "jaeger"
+      endpoint: ${JAEGER_ENDPOINT}
+
+# Function Logs
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  retention:
+    enabled: true
+    days: 30
+
+# Function Cache
+cache:
+  enabled: true
+  type: "redis"
+  ttl: 3600s # 1 hour
+  max_size: "1GB"
+
+# Function Permissions
+permissions:
+  default_timeout: 60s
+  max_memory: "1GB"
+  network_access: false
+  file_system_access: false
+  environment_variables:
+    allowed_prefixes:
+      - "FUNCTION_"
+      - "NEO_"
+    denied_prefixes:
+      - "AWS_"
+      - "AZURE_"
+      - "GOOGLE_"
+
+# Development Settings
+development:
+  hot_reload: true
+  debug_port: 9229
+  source_maps: true

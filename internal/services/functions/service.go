@@ -23,6 +23,13 @@ type Service struct {
 	permissions      map[string]*FunctionPermissions
 	functionVersions map[string]map[int]*FunctionVersion
 	mu               sync.RWMutex
+	
+	// Service references for interoperability
+	gasBankService     interface{}
+	priceFeedService   interface{}
+	secretsService     interface{}
+	triggerService     interface{}
+	transactionService interface{}
 }
 
 // NewService creates a new Functions service
@@ -44,13 +51,18 @@ func NewService(config *Config) (*Service, error) {
 	if config.DefaultRuntime == "" {
 		config.DefaultRuntime = string(JavaScriptRuntime)
 	}
+	if config.ServiceLayerURL == "" {
+		config.ServiceLayerURL = "http://localhost:3000" // Default service layer URL
+	}
 
 	// Create sandbox for JavaScript execution
 	sandboxConfig := runtime.SandboxConfig{
-		MemoryLimit:   config.MaxMemoryLimit,
-		TimeoutMillis: config.MaxExecutionTime.Milliseconds(),
-		AllowNetwork:  config.EnableNetworkAccess,
-		AllowFileIO:   config.EnableFileIO,
+		MemoryLimit:           config.MaxMemoryLimit,
+		TimeoutMillis:         config.MaxExecutionTime.Milliseconds(),
+		AllowNetwork:          config.EnableNetworkAccess,
+		AllowFileIO:           config.EnableFileIO,
+		ServiceLayerURL:       config.ServiceLayerURL,
+		EnableInteroperability: config.EnableInteroperability,
 	}
 	sandbox := runtime.NewSandbox(sandboxConfig)
 
@@ -61,6 +73,13 @@ func NewService(config *Config) (*Service, error) {
 		executions:       make(map[string]*FunctionExecution),
 		permissions:      make(map[string]*FunctionPermissions),
 		functionVersions: make(map[string]map[int]*FunctionVersion),
+		
+		// Initialize service references from config
+		gasBankService:     config.GasBankService,
+		priceFeedService:   config.PriceFeedService,
+		secretsService:     config.SecretsService,
+		triggerService:     config.TriggerService,
+		transactionService: config.TransactionService,
 	}, nil
 }
 
@@ -400,11 +419,46 @@ func (s *Service) executeFunction(function *Function, execution *FunctionExecuti
 		return
 	}
 
+	// Prepare function context for interoperability
+	var functionContext *runtime.FunctionContext
+	if s.config.EnableInteroperability {
+		functionContext = &runtime.FunctionContext{
+			FunctionID:      function.ID,
+			ExecutionID:     execution.ID,
+			Owner:           function.Owner.StringLE(),
+			Parameters:      parameters,
+			TraceID:         execution.TraceID,
+			ServiceLayerURL: s.config.ServiceLayerURL,
+			Services: &runtime.ServiceClients{
+				Functions:   s,
+				GasBank:     s.gasBankService,
+				PriceFeed:   s.priceFeedService,
+				Secrets:     s.secretsService,
+				Trigger:     s.triggerService,
+				Transaction: s.transactionService,
+			},
+		}
+		
+		// Add caller if available
+		if !execution.InvokedBy.Equals(util.Uint160{}) {
+			functionContext.Caller = execution.InvokedBy.StringLE()
+		}
+		
+		// Add environment variables
+		functionContext.Env = make(map[string]string)
+		if function.Metadata != nil {
+			if env, ok := function.Metadata["env"].(map[string]string); ok {
+				functionContext.Env = env
+			}
+		}
+	}
+
 	// Prepare input for sandbox
 	input := runtime.FunctionInput{
-		Code:       function.Code,
-		Args:       parameters,
-		Parameters: parameters,
+		Code:            function.Code,
+		Args:            parameters,
+		Parameters:      parameters,
+		FunctionContext: functionContext,
 	}
 
 	// Execute in sandbox

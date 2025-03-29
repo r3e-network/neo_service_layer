@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Automation Service provides contract automation capabilities similar to Chainlink Keeper for the Neo N3 blockchain. It enables automated execution of smart contract functions based on time schedules or custom conditions. The service integrates with other Neo Service Layer components to offer a complete automation solution with secure, reliable, and gas-efficient contract invocations.
+The Automation Service provides contract automation capabilities for the Neo N3 blockchain. It enables automated execution of smart contract functions based on time schedules or custom conditions. The service integrates with other Neo Service Layer components to offer a complete automation solution with secure, reliable, and gas-efficient contract invocations.
 
 ## Key Features
 

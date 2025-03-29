@@ -1,45 +1,28 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+FROM node:18-alpine
 
-# Install build dependencies
-RUN apk add --no-cache git make
+# Install system dependencies
+RUN apk add --no-cache python3 make g++ git
 
 # Set working directory
 WORKDIR /app
 
-# Copy go mod and sum files
-COPY go.mod go.sum ./
+# Copy package files
+COPY package*.json ./
 
-# Download dependencies
-RUN go mod download
+# Install dependencies
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN make build
+RUN npm run build
 
-# Final stage
-FROM alpine:latest
-
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
-
-# Set working directory
-WORKDIR /app
-
-# Copy binary from builder
-COPY --from=builder /app/bin/neo-service-layer .
-COPY --from=builder /app/bin/cli .
-
-# Copy config file
-COPY config.yaml .
-
-# Expose port
-EXPOSE 8080
+# Expose ports
+EXPOSE 3000 9090
 
 # Set environment variables
-ENV CONFIG_FILE=/app/config.yaml
+ENV NODE_ENV=production
 
-# Run the application
-CMD ["./neo-service-layer", "--config", "config.yaml"]
+# Start the service
+CMD ["npm", "start"]

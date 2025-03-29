@@ -8,12 +8,21 @@ import (
 
 // Config holds configuration for the Functions service
 type Config struct {
-	MaxFunctionSize     int           // Maximum size of function code in bytes
-	MaxExecutionTime    time.Duration // Maximum execution time for a function
-	MaxMemoryLimit      int64         // Maximum memory limit for functions in bytes
-	EnableNetworkAccess bool          // Whether to allow network access in functions
-	EnableFileIO        bool          // Whether to allow file I/O in functions
-	DefaultRuntime      string        // Default runtime for functions (e.g., "javascript")
+	MaxFunctionSize       int           // Maximum size of function code in bytes
+	MaxExecutionTime      time.Duration // Maximum execution time for a function
+	MaxMemoryLimit        int64         // Maximum memory limit for functions in bytes
+	EnableNetworkAccess   bool          // Whether to allow network access in functions
+	EnableFileIO          bool          // Whether to allow file I/O in functions
+	DefaultRuntime        string        // Default runtime for functions (e.g., "javascript")
+	ServiceLayerURL       string        // URL for the Neo Service Layer API
+	EnableInteroperability bool          // Enable/disable interoperability features
+	
+	// Service references for interoperability
+	GasBankService        interface{}   // Reference to Gas Bank service
+	PriceFeedService      interface{}   // Reference to Price Feed service
+	SecretsService        interface{}   // Reference to Secrets service
+	TriggerService        interface{}   // Reference to Trigger service
+	TransactionService    interface{}   // Reference to Transaction service
 }
 
 // FunctionStatus represents the status of a function
@@ -95,11 +104,36 @@ type FunctionPermissions struct {
 
 // FunctionVersion represents a version of a function
 type FunctionVersion struct {
-	FunctionID  string       `json:"functionId"`  // Function ID
-	Version     int          `json:"version"`     // Version number
-	Code        string       `json:"code"`        // Function code
-	Description string       `json:"description"` // Version description
-	CreatedAt   time.Time    `json:"createdAt"`   // When the version was created
-	CreatedBy   util.Uint160 `json:"createdBy"`   // Who created the version
-	Status      string       `json:"status"`      // Version status
+	FunctionID  string        `json:"functionId"`  // Function ID
+	Version     int           `json:"version"`     // Version number
+	Code        string        `json:"code"`        // Function code
+	Runtime     Runtime       `json:"runtime"`     // Function runtime
+	CreatedAt   time.Time     `json:"createdAt"`   // When the version was created
+	CreatedBy   util.Uint160  `json:"createdBy"`   // Who created the version
+	Description string        `json:"description"` // Version description
+	Status      string        `json:"status"`      // Version status
+}
+
+// FunctionContext represents the execution context for a function
+type FunctionContext struct {
+	FunctionID  string                 `json:"functionId"`  // Function ID
+	ExecutionID string                 `json:"executionId"` // Execution ID
+	Owner       util.Uint160           `json:"owner"`       // Function owner
+	Caller      util.Uint160           `json:"caller"`      // Function caller
+	Parameters  map[string]interface{} `json:"parameters"`  // Function parameters
+	Env         map[string]string      `json:"env"`         // Environment variables
+	TraceID     string                 `json:"traceId"`     // Trace ID for request tracking
+	
+	// Service references for interoperability
+	Services    *ServiceClients        `json:"-"`           // Service clients for interoperability
+}
+
+// ServiceClients holds references to Neo Service Layer services
+type ServiceClients struct {
+	Functions   interface{} // Functions service client
+	GasBank     interface{} // Gas Bank service client
+	PriceFeed   interface{} // Price Feed service client
+	Secrets     interface{} // Secrets service client
+	Trigger     interface{} // Trigger service client
+	Transaction interface{} // Transaction service client
 }

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Neo Service Layer is a comprehensive middleware platform designed to provide centralized Chainlink-like functionality for the Neo N3 blockchain. It offers a suite of services that enable developers to create, deploy, and manage decentralized applications with enhanced capabilities such as external data integration, automated task execution, and secure function management.
+The Neo Service Layer is a comprehensive middleware platform designed to provide functionality for the Neo N3 blockchain. It offers a suite of services that enable developers to create, deploy, and manage decentralized applications with enhanced capabilities such as external data integration, automated task execution, and secure function management.
 
 ## System Architecture
 

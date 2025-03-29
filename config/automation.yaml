@@ -1,0 +1,153 @@
+# Automation Service Configuration
+
+# Contract Automation
+contract:
+  enabled: true
+  scan_interval: 1s
+  confirmation_blocks: 1
+  max_retries: 3
+  strategies:
+    keeper:
+      enabled: true
+      check_interval: 1m
+      gas_price_buffer: 1.2
+      max_gas_price: "0.1"
+    event:
+      enabled: true
+      batch_size: 100
+      max_blocks_per_scan: 1000
+    method:
+      enabled: true
+      timeout: 30s
+      max_concurrent: 100
+
+# Execution Configuration
+execution:
+  retry:
+    enabled: true
+    max_attempts: 3
+    initial_interval: 1s
+    max_interval: 10s
+    multiplier: 2.0
+  timeout: 60s
+  concurrent_limit: 100
+  batch:
+    enabled: true
+    size: 10
+    interval: 1m
+
+# Storage Configuration
+storage:
+  type: "postgres"
+  postgres:
+    table_prefix: "automation_"
+  retention:
+    enabled: true
+    duration: 90d
+    execution_history: 30d
+  backup:
+    enabled: true
+    interval: 24h
+    retention: 7d
+
+# Monitoring Configuration
+monitoring:
+  blockchain:
+    poll_interval: 1s
+    confirmation_blocks: 1
+    max_blocks_per_scan: 100
+  condition:
+    evaluation_interval: 1m
+    cache_duration: 5m
+  performance:
+    tracking_enabled: true
+    metrics_interval: 10s
+
+# Queue Configuration
+queue:
+  type: "redis"
+  redis:
+    key_prefix: "automation_"
+    stream_max_len: 1000
+  processing:
+    batch_size: 100
+    workers: 10
+    timeout: 30s
+
+# Metrics and Monitoring
+metrics:
+  enabled: true
+  collection_interval: 10s
+  exporters:
+    - type: "prometheus"
+      endpoint: "/metrics"
+  alerts:
+    execution_failure:
+      threshold: 3
+      window: 5m
+      notification:
+        type: "email"
+        recipients: ["alerts@neo-service-layer.io"]
+    missed_execution:
+      threshold: 5
+      window: 1h
+      notification:
+        type: "email"
+        recipients: ["alerts@neo-service-layer.io"]
+
+# Security Configuration
+security:
+  max_automations_per_user: 1000
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+  validation:
+    contract_whitelist: []
+    method_whitelist: []
+    gas_limit: 1000000
+
+# Recovery Configuration
+recovery:
+  enabled: true
+  checkpoint_interval: 5m
+  auto_resume: true
+  max_replay_age: 24h
+
+# Development Configuration
+development:
+  mock_transactions: false
+  simulation_mode: false
+  debug_logging: false
+
+# Integration Configuration
+integration:
+  functions:
+    enabled: true
+    timeout: 30s
+  triggers:
+    enabled: true
+    max_triggers: 100
+  gasbank:
+    enabled: true
+    min_balance: "1000000"
+  pricefeed:
+    enabled: true
+    update_threshold: 0.5
+
+# Notification Configuration
+notifications:
+  enabled: true
+  providers:
+    email:
+      enabled: true
+      from: "automation@neo-service-layer.io"
+      smtp:
+        host: ${SMTP_HOST}
+        port: ${SMTP_PORT}
+        username: ${SMTP_USERNAME}
+        password: ${SMTP_PASSWORD}
+    slack:
+      enabled: true
+      webhook_url: ${SLACK_WEBHOOK_URL}
+      channel: "#automation-alerts"

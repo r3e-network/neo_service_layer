@@ -1,0 +1,392 @@
+openapi: 3.0.3
+info:
+  title: Neo N3 Service Layer API
+  description: |
+    The Neo N3 Service Layer API provides a comprehensive interface for managing serverless functions, 
+    triggers, gas allocation, price feeds, and secrets on the Neo N3 blockchain.
+  version: 1.0.0
+  contact:
+    name: Neo Service Layer Team
+    email: api@neo-service-layer.io
+    url: https://github.com/will/neo_service_layer
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.neo-service-layer.io/v1
+    description: Production server
+  - url: https://api.staging.neo-service-layer.io/v1
+    description: Staging server
+  - url: http://localhost:3000/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the /auth/verify endpoint
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INVALID_REQUEST
+            message:
+              type: string
+              example: Invalid request parameters
+            details:
+              type: object
+              additionalProperties: true
+
+    Function:
+      type: object
+      properties:
+        id:
+          type: string
+          example: func_123
+        name:
+          type: string
+          example: price_alert
+        description:
+          type: string
+          example: NEO price alert function
+        runtime:
+          type: string
+          enum: [javascript, python, go]
+        code:
+          type: string
+        environment:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, inactive]
+
+    Trigger:
+      type: object
+      properties:
+        id:
+          type: string
+          example: trig_123
+        name:
+          type: string
+          example: daily_price_check
+        function_id:
+          type: string
+          example: func_123
+        type:
+          type: string
+          enum: [schedule, event, condition]
+        schedule:
+          type: string
+          example: 0 0 * * *
+        status:
+          type: string
+          enum: [active, inactive]
+
+    GasBalance:
+      type: object
+      properties:
+        address:
+          type: string
+          example: NXxx...xxxx
+        balance:
+          type: string
+          example: "1000000"
+        allocated:
+          type: string
+          example: "500000"
+        available:
+          type: string
+          example: "500000"
+        last_refill:
+          type: string
+          format: date-time
+
+    Price:
+      type: object
+      properties:
+        symbol:
+          type: string
+          example: NEO/USD
+        price:
+          type: string
+          example: "50.00"
+        timestamp:
+          type: string
+          format: date-time
+        sources:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: binance
+              price:
+                type: string
+                example: "50.00"
+              weight:
+                type: number
+                example: 1.0
+
+    Secret:
+      type: object
+      properties:
+        id:
+          type: string
+          example: sec_123
+        name:
+          type: string
+          example: api_key
+        description:
+          type: string
+          example: API key for external service
+        created_at:
+          type: string
+          format: date-time
+        last_accessed:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 100
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+
+paths:
+  /auth/verify:
+    post:
+      security: []
+      summary: Verify wallet signature and obtain JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                address:
+                  type: string
+                  example: NXxx...xxxx
+                message:
+                  type: string
+                  example: Login to Neo Service Layer at 2024-03-27T00:00:00Z
+                signature:
+                  type: string
+                  example: 0x...
+      responses:
+        '200':
+          description: JWT token for authentication
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJ...
+
+  /functions:
+    get:
+      summary: List functions
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: List of functions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  functions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Function'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      summary: Create a new function
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Function'
+      responses:
+        '201':
+          description: Function created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Function'
+
+  /triggers:
+    get:
+      summary: List triggers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [schedule, event, condition]
+      responses:
+        '200':
+          description: List of triggers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  triggers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Trigger'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /gas/balance:
+    get:
+      summary: Get gas balance
+      responses:
+        '200':
+          description: Gas balance information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasBalance'
+
+  /gas/request:
+    post:
+      summary: Request gas allocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: string
+                  example: "100000"
+      responses:
+        '200':
+          description: Gas allocation request processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasBalance'
+
+  /prices/{symbol}:
+    get:
+      summary: Get current price for a trading pair
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+            example: NEO/USD
+      responses:
+        '200':
+          description: Current price information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Price'
+
+  /secrets:
+    get:
+      summary: List secrets
+      responses:
+        '200':
+          description: List of secrets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secrets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Secret'
+
+    post:
+      summary: Create a new secret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: api_key
+                value:
+                  type: string
+                  example: secret_value
+                description:
+                  type: string
+                  example: API key for external service
+      responses:
+        '201':
+          description: Secret created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Secret' 

@@ -1,0 +1,132 @@
+# Price Feed Service Configuration
+
+# Data Sources Configuration
+sources:
+  - name: "binance"
+    type: "exchange"
+    priority: 1
+    weight: 1.0
+    enabled: true
+    api:
+      url: "https://api.binance.com"
+      timeout: 5s
+      rate_limit:
+        requests_per_minute: 60
+    pairs:
+      - base: "NEO"
+        quote: "USDT"
+        min_price: 1.0
+        max_price: 1000000.0
+        precision: 8
+
+  - name: "coinbase"
+    type: "exchange"
+    priority: 2
+    weight: 1.0
+    enabled: true
+    api:
+      url: "https://api.coinbase.com"
+      timeout: 5s
+      rate_limit:
+        requests_per_minute: 60
+    pairs:
+      - base: "NEO"
+        quote: "USD"
+        min_price: 1.0
+        max_price: 1000000.0
+        precision: 8
+
+# Aggregation Configuration
+aggregation:
+  method: "weighted_median"  # weighted_median, median, or mean
+  min_sources: 2            # Minimum number of sources required
+  max_deviation: 0.1        # Maximum allowed deviation (10%)
+  update_interval: 1m       # How often to update prices
+  heartbeat_interval: 5m    # How often to check source health
+  validation:
+    enabled: true
+    rules:
+      - type: "deviation"
+        max_percent: 10
+      - type: "stale_data"
+        max_age: 5m
+      - type: "volume"
+        min_daily_volume: 1000000
+
+# On-Chain Publishing
+publishing:
+  enabled: true
+  contract_address: ${ORACLE_CONTRACT_ADDRESS}
+  update_threshold: 0.5     # Minimum price change to trigger update (%)
+  gas_limit: 1000000
+  retry:
+    max_attempts: 3
+    initial_interval: 1s
+    max_interval: 10s
+    multiplier: 2.0
+  batch:
+    enabled: true
+    size: 10
+    interval: 5m
+
+# Data Storage
+storage:
+  type: "postgres"
+  postgres:
+    table_prefix: "pricefeed_"
+  retention:
+    enabled: true
+    duration: 90d
+  backup:
+    enabled: true
+    interval: 24h
+    retention: 7d
+
+# Metrics and Monitoring
+metrics:
+  enabled: true
+  collection_interval: 10s
+  exporters:
+    - type: "prometheus"
+      endpoint: "/metrics"
+  alerts:
+    price_deviation:
+      threshold: 5.0
+      notification:
+        type: "email"
+        recipients: ["alerts@neo-service-layer.io"]
+    source_failure:
+      threshold: 2
+      window: 5m
+      notification:
+        type: "email"
+        recipients: ["alerts@neo-service-layer.io"]
+
+# API Configuration
+api:
+  enabled: true
+  cache:
+    enabled: true
+    ttl: 60s
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+
+# Security
+security:
+  api_keys:
+    enabled: true
+    rotation_interval: 30d
+  source_verification:
+    enabled: true
+    ssl_verify: true
+  whitelist:
+    enabled: false
+    ips: []
+
+# Development
+development:
+  mock_data: false
+  simulation_mode: false
+  debug_logging: false

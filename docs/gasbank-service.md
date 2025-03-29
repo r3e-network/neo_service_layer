@@ -106,6 +106,26 @@ err := gasBankService.RefillPool(ctx)
 
 ## Configuration
 
+When initializing the GasBank service, it's essential to properly configure all components, including the AlertManager. The AlertConfig must be explicitly initialized to avoid nil pointer dereferences during operation, especially in the monitoring routines.
+
+Example configuration:
+
+```go
+gasBankConfig := &gasbank.Config{
+    InitialGas:              big.NewInt(1000000000), // 10 GAS
+    RefillAmount:            big.NewInt(500000000),  // 5 GAS
+    RefillThreshold:         big.NewInt(200000000),  // 2 GAS
+    MaxAllocationPerUser:    big.NewInt(100000000),  // 1 GAS
+    MinAllocationAmount:     big.NewInt(1000000),    // 0.01 GAS
+    StoreType:               "memory",
+    MaxAllocationTime:       24 * time.Hour,
+    CooldownPeriod:          5 * time.Minute,
+    ExpirationCheckInterval: 15 * time.Minute,
+    MonitorInterval:         5 * time.Minute,
+    AlertConfig:             internal.DefaultAlertConfig(), // Important: Always initialize the AlertConfig
+}
+```
+
 The GasBank service is configured through a configuration structure:
 
 ```go

@@ -1,7 +1,7 @@
 # Price Feed Service Design
 
 ## Overview
-The Price Feed Service is responsible for providing reliable price data to the Neo N3 blockchain. It operates similarly to Chainlink's price feeds but is specifically designed for the Neo ecosystem.
+The Price Feed Service is responsible for providing reliable price data to the Neo N3 blockchain. It is specifically designed for the Neo ecosystem.
 
 ## Core Components
 

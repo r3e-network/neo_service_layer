@@ -1,0 +1,48 @@
+{
+  "name": "neo-service-layer-js",
+  "version": "0.1.0",
+  "description": "JavaScript SDK for Neo Function Service interoperability with Neo Service Layer",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepare": "npm run build",
+    "docs": "typedoc --out docs src"
+  },
+  "keywords": [
+    "neo",
+    "blockchain",
+    "service-layer",
+    "function-service",
+    "interoperability",
+    "serverless"
+  ],
+  "author": "Neo Service Layer Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.8.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.11.24",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^8.0.0",
+    "jest": "^29.7.0",
+    "prettier": "^2.8.0",
+    "ts-jest": "^29.0.0",
+    "typedoc": "^0.24.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neo-project/neo-service-layer"
+  }
+}

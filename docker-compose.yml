@@ -1,54 +1,169 @@
-version: '3.8'
-
 services:
-  app:
+  api:
     build: .
     ports:
-      - "8080:8080"
+      - "3000:3000"
+      - "9090:9090"
     environment:
-      - CONFIG_FILE=/app/config.yaml
-      - SECRETS_ENCRYPTION_KEY=your-encryption-key
-      - JWT_SECRET=your-jwt-secret
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=neo_service
+      - DB_USER=neo_user
+      - DB_PASSWORD=neo_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NEO_RPC_ENDPOINT=http://neo-node:10332
+      - JWT_SECRET=your_jwt_secret_here
+      - TEE_ATTESTATION_URL=https://attestation.example.com
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./config:/app/config
     depends_on:
-      - db
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo-node:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
 
-  db:
+  postgres:
     image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=neo_service_layer
     ports:
       - "5432:5432"
+    environment:
+      - POSTGRES_DB=neo_service
+      - POSTGRES_USER=neo_user
+      - POSTGRES_PASSWORD=neo_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neo_user -d neo_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  neo-node:
+    image: cityofzion/neo-go:latest
+    ports:
+      - "10332:10332"
+    volumes:
+      - neo_data:/root/.neo-cli
+    command: node --mainnet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10332"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'status.*green\\|status.*yellow'"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:9.5.2
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
       - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.47
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "6831:6831/udp"
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:16686"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
+  neo_data:
+  elasticsearch_data:
   prometheus_data:
   grafana_data:

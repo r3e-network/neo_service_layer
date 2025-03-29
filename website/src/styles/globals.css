@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-end-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Custom animations */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Code block styles */
+.code-block {
+  @apply bg-gray-800 rounded-lg p-4 text-white overflow-x-auto;
+}
+
+.code-block pre {
+  @apply m-0;
+}
+
+/* Documentation styles */
+.prose {
+  @apply max-w-none;
+}
+
+.prose h1 {
+  @apply text-4xl font-bold mb-8;
+}
+
+.prose h2 {
+  @apply text-3xl font-bold mt-12 mb-6;
+}
+
+.prose h3 {
+  @apply text-2xl font-bold mt-8 mb-4;
+}
+
+.prose p {
+  @apply text-gray-600 leading-7 mb-6;
+}
+
+.prose ul {
+  @apply list-disc list-inside mb-6;
+}
+
+.prose li {
+  @apply text-gray-600 leading-7;
+}
+
+/* Interactive elements */
+.interactive-element {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.interactive-element:hover {
+  @apply transform scale-105;
+}
+
+/* Form elements */
+.form-input {
+  @apply rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500;
+}
+
+.form-select {
+  @apply rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500;
+}
+
+.form-checkbox {
+  @apply rounded border-gray-300 text-indigo-600 focus:ring-indigo-500;
+}
+
+/* Button styles */
+.btn {
+  @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
+}
+
+.btn-primary {
+  @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500;
+}
+
+.btn-secondary {
+  @apply bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-lg shadow-md overflow-hidden;
+}
+
+.card-hover {
+  @apply transition-shadow duration-200 hover:shadow-lg;
+}
+
+/* Navigation styles */
+.nav-link {
+  @apply text-gray-600 hover:text-gray-900 transition-colors duration-200;
+}
+
+.nav-link-active {
+  @apply text-indigo-600 font-medium;
+}

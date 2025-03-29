@@ -1,146 +1,151 @@
-# Neo N3 Service Layer CLI
+# Neo Service Layer
 
-A command-line interface for managing Neo N3 Service Layer components including accounts, triggers, functions, price feeds, and gas banks.
+A comprehensive infrastructure solution for the Neo N3 blockchain, providing essential services for building and maintaining decentralized applications. Our platform combines the security of Trusted Execution Environments (TEE) with the flexibility of modern cloud services.
 
-## Installation
+## Features
 
-```bash
-go install github.com/will/neo_service_layer/cmd/cli@latest
-```
+### Price Feed Service
+- Real-time price data from trusted sources
+- Historical price data access
+- Customizable update intervals
+- WebSocket subscriptions for live updates
 
-## Configuration
+### Contract Automation
+- Chainlink Keeper-compatible automation
+- Customizable execution schedules
+- Event-driven triggers
+- Comprehensive task management
 
-The CLI can be configured using a YAML configuration file. By default, it looks for a file named `config.yaml` in the current directory. You can specify a different configuration file using the `--config` flag.
+### Gas Bank
+- Automated gas management for contracts
+- Configurable auto-funding rules
+- Transaction fee optimization
+- Balance monitoring and alerts
 
-Example configuration:
+### Functions Service
+- Serverless functions in TEE
+- Multiple runtime support
+- Automatic scaling
+- Integrated monitoring and logging
 
-```yaml
-environment: development
-logLevel: info
-api:
-  host: localhost
-  port: 8080
-  endpoint: http://localhost:10332
-  timeout: 30s
-  enableCors: true
-  maxRequestBodySize: 10485760 # 10MB
-```
+### Secrets Management
+- Secure secret storage in TEE
+- Automatic key rotation
+- Fine-grained access control
+- Audit logging
 
-## Usage
+### Trigger Service
+- Blockchain event monitoring
+- Custom trigger conditions
+- Automated responses
+- Event history and analytics
 
-### Global Flags
+### Metrics Service
+- Real-time performance monitoring
+- Custom alert configurations
+- Usage statistics
+- Performance optimization insights
 
-- `--config`: Path to configuration file
-- `--verbose`: Enable verbose logging
+### Logging Service
+- Centralized log management
+- Search and filtering
+- Log retention policies
+- Export capabilities
 
-### Commands
+## Security
 
-#### Triggers
+- All services run in Trusted Execution Environments (TEE)
+- Cryptographic signature-based authentication
+- No user registration or login required
+- Regular security audits and updates
 
-Manage function triggers that invoke functions based on events, schedules, or contract conditions.
+## Getting Started
 
-```bash
-# Create a new trigger
-cli triggers create \
-  --name my-trigger \
-  --function my-function \
-  --schedule "*/5 * * * *" \
-  --params '{"key": "value"}'
+1. Install the SDK:
+   ```bash
+   npm install @neo-service-layer/core
+   # or
+   yarn add @neo-service-layer/core
+   ```
 
-# Create a contract event trigger
-cli triggers create \
-  --name contract-trigger \
-  --function handle-event \
-  --contract 0x1234...5678 \
-  --event Transfer
+2. Initialize the client with your Neo N3 wallet:
+   ```typescript
+   import { Client } from '@neo-service-layer/core';
 
-# Create a contract method trigger
-cli triggers create \
-  --name method-trigger \
-  --function check-balance \
-  --contract 0x1234...5678 \
-  --method balanceOf \
-  --condition "result > 100"
+   const client = new Client({
+     signMessage: async (message) => {
+       // Sign message using your Neo N3 wallet
+       return signature;
+     }
+   });
+   ```
 
-# List all triggers
-cli triggers list
+3. Use the services:
+   ```typescript
+   // Get price data
+   const priceFeed = new PriceFeed(client);
+   const price = await priceFeed.getPrice('NEO/USD');
 
-# List active triggers
-cli triggers list --status active
+   // Create automation task
+   const automation = new Automation(client);
+   await automation.createTask({
+     name: 'Price Update',
+     contract: 'YOUR_CONTRACT_HASH',
+     method: 'updatePrice',
+     schedule: '*/30 * * * *',
+     params: [price],
+   });
+   ```
 
-# Get trigger details in JSON format
-cli triggers list --format json
+## Documentation
 
-# Delete a trigger
-cli triggers delete my-trigger
-
-# Force delete an active trigger
-cli triggers delete my-trigger --force
-
-# Enable a trigger
-cli triggers enable my-trigger
-
-# Disable a trigger
-cli triggers disable my-trigger
-
-# View trigger execution history
-cli triggers history my-trigger
-
-# View recent history with custom limit
-cli triggers history my-trigger --limit 50 --since 1h
-
-# Check trigger status
-cli triggers status my-trigger
-
-# Get status in JSON format
-cli triggers status my-trigger --format json
-```
-
-#### Accounts
-
-Manage Neo N3 accounts.
-
-```bash
-# Create a new account
-cli accounts create
-
-# Create account with custom name
-cli accounts create --name my-account
-
-# List all accounts
-cli accounts list
-
-# Delete an account
-cli accounts delete my-account
-```
+Visit our [documentation website](https://neo-service-layer.io/docs) for:
+- Detailed API references
+- Integration guides
+- Best practices
+- Example projects
+- Troubleshooting guides
 
 ## Development
 
-### Prerequisites
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/neo-project/neo-service-layer.git
+   cd neo-service-layer
+   ```
 
-- Go 1.21 or later
-- Neo N3 node (TestNet or PrivateNet)
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn
+   ```
 
-### Building
+3. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
 
-```bash
-make build
-```
+4. Build for production:
+   ```bash
+   npm run build
+   # or
+   yarn build
+   ```
 
-### Testing
+## Contributing
 
-```bash
-make test
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+## Support
+
+- [Documentation](https://neo-service-layer.io/docs)
+- [GitHub Issues](https://github.com/neo-project/neo-service-layer/issues)
+- [Discord Community](https://discord.gg/neo)
+- [Neo Discord](https://discord.gg/neo)

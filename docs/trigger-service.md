@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Trigger Service is a critical component of the Neo Service Layer that enables event-driven automation. It allows users to define conditions that, when met, automatically execute predefined actions. This capability is similar to the Chainlink Keeper functionality but specifically designed for the Neo N3 blockchain ecosystem.
+The Trigger Service is a critical component of the Neo Service Layer that enables event-driven automation. It allows users to define conditions that, when met, automatically execute predefined actions. This capability is specifically designed for the Neo N3 blockchain ecosystem.
 
 ## Key Features
 

@@ -1,7 +1,7 @@
 # Neo Service Layer - Phase 2 Architecture
 
 ## Overview
-Phase 2 of the Neo Service Layer implements core services that provide Chainlink-like functionality for Neo N3. This document outlines the architecture and components of each service.
+Phase 2 of the Neo Service Layer implements core services that provide functionality for Neo N3. This document outlines the architecture and components of each service.
 
 ## Core Services
 

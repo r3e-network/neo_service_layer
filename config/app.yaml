@@ -1,0 +1,94 @@
+# Neo N3 Service Layer Configuration
+
+# Environment settings
+environment: development # development, staging, production
+debug: true
+
+# API Service Configuration
+api:
+  host: 0.0.0.0
+  port: 3000
+  jwt_secret: ${JWT_SECRET} # Set this via environment variable
+  cors:
+    enabled: true
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  rate_limit:
+    enabled: true
+    requests_per_second: 10
+  timeouts:
+    read: 30s
+    write: 30s
+    idle: 60s
+  max_request_size: 10485760 # 10MB
+
+# Database Configuration
+database:
+  host: ${DB_HOST:-localhost}
+  port: ${DB_PORT:-5432}
+  name: ${DB_NAME:-neo_service}
+  user: ${DB_USER:-neo_user}
+  password: ${DB_PASSWORD}
+  ssl_mode: disable
+  max_connections: 100
+  connection_timeout: 30s
+
+# Neo N3 Node Configuration
+neo:
+  rpc_endpoint: ${NEO_RPC_ENDPOINT:-http://localhost:10332}
+  network: ${NEO_NETWORK:-testnet} # mainnet, testnet, private
+  wallet:
+    path: ${NEO_WALLET_PATH:-./neo-wallet.json}
+    password: ${NEO_WALLET_PASSWORD}
+  gas_fee: 0.001
+
+# Security Configuration
+security:
+  tee:
+    enabled: true
+    provider: "azure_confidential_computing" # or other providers
+    attestation_url: ${TEE_ATTESTATION_URL}
+  encryption:
+    key_rotation_interval: 30d
+    algorithm: "AES-256-GCM"
+
+# Monitoring Configuration
+monitoring:
+  metrics:
+    enabled: true
+    prometheus_endpoint: "/metrics"
+  health_check:
+    enabled: true
+    endpoint: "/health"
+  tracing:
+    enabled: true
+    provider: "jaeger"
+    endpoint: ${JAEGER_ENDPOINT:-http://localhost:14268/api/traces}
+
+# Cache Configuration
+cache:
+  type: "redis"
+  redis:
+    host: ${REDIS_HOST:-localhost}
+    port: ${REDIS_PORT:-6379}
+    password: ${REDIS_PASSWORD}
+    db: 0
+    pool_size: 100
+
+# Service Dependencies
+services:
+  functions: true
+  triggers: true
+  gasbank: true
+  pricefeed: true
+  secrets: true
+  automation: true
+  metrics: true
+  logging: true
+
+# Feature Flags
+features:
+  contract_automation: true
+  price_feeds: true
+  gas_optimization: true
+  multi_sig: true
