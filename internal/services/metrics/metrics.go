@@ -3,6 +3,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -62,15 +63,16 @@ func DefaultConfig() *Config {
 
 // Service represents the metrics service
 type Service struct {
-	config         *Config
-	log            *logrus.Logger
-	gauges         map[string]*Gauge
-	counters       map[string]*Counter
-	histograms     map[string]*Histogram
-	metrics        []Metric
-	mutex          sync.RWMutex
-	stopCollection chan struct{}
-	collectors     map[ServiceType][]Collector
+	config     *Config
+	log        *logrus.Logger
+	gauges     map[string]*Gauge
+	counters   map[string]*Counter
+	histograms map[string]*Histogram
+	metrics    []Metric
+	mutex      sync.RWMutex
+	stopChan   chan struct{}
+	collectors map[ServiceType][]Collector
+	exporter   MetricExporter
 }
 
 // Gauge represents a gauge metric that can go up and down
@@ -107,7 +109,7 @@ type Collector interface {
 }
 
 // NewService creates a new metrics service
-func NewService(config *Config) *Service {
+func NewService(config *Config) (*Service, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -115,67 +117,156 @@ func NewService(config *Config) *Service {
 	logger := logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
 
-	return &Service{
-		config:         config,
-		log:            logger,
-		gauges:         make(map[string]*Gauge),
-		counters:       make(map[string]*Counter),
-		histograms:     make(map[string]*Histogram),
-		metrics:        make([]Metric, 0),
-		stopCollection: make(chan struct{}),
-		collectors:     make(map[ServiceType][]Collector),
+	svc := &Service{
+		config:     config,
+		log:        logger,
+		gauges:     make(map[string]*Gauge),
+		counters:   make(map[string]*Counter),
+		histograms: make(map[string]*Histogram),
+		metrics:    make([]Metric, 0),
+		stopChan:   make(chan struct{}),
+		collectors: make(map[ServiceType][]Collector),
 	}
+
+	// Initialize Exporter based on config
+	switch config.StorageBackend {
+	case "prometheus":
+		// TODO: Get port/path from config.StorageConfig
+		promPort := 9091 // Default port
+		promPath := "/metrics"
+		svc.exporter = NewPrometheusExporter(promPort, promPath)
+		logger.Infof("Initialized Prometheus exporter on port %d path %s", promPort, promPath)
+	case "json":
+		// TODO: Get file path/interval from config.StorageConfig
+		filePath := "./metrics.json"
+		interval := 60 * time.Second
+		svc.exporter = NewJSONExporter(filePath, interval)
+		logger.Infof("Initialized JSON exporter to file %s every %v", filePath, interval)
+	case "memory", "":
+		logger.Info("Using in-memory metric storage only (no exporter configured)")
+		// No exporter needed for memory store
+	default:
+		return nil, fmt.Errorf("unsupported metrics storage backend: %s", config.StorageBackend)
+	}
+
+	return svc, nil
 }
 
-// Start begins the metrics collection process
+// Start begins the metrics collection process and starts the exporter
 func (s *Service) Start(ctx context.Context) error {
-	go s.collectMetrics(ctx)
+	// Start exporter if it exists
+	if s.exporter != nil {
+		if err := s.exporter.Start(); err != nil {
+			return fmt.Errorf("failed to start metrics exporter: %w", err)
+		}
+		s.log.Info("Metrics exporter started.")
+	}
+
+	go s.runCollectionLoop(ctx)
+	s.log.Info("Metrics collection loop started.")
 	return nil
 }
 
-// Stop halts the metrics collection process
+// Stop halts the metrics collection process and stops the exporter
 func (s *Service) Stop() error {
-	close(s.stopCollection)
+	s.log.Info("Stopping metrics service...")
+	close(s.stopChan)
+
+	// Stop exporter if it exists
+	if s.exporter != nil {
+		if err := s.exporter.Stop(); err != nil {
+			s.log.Errorf("Failed to stop metrics exporter cleanly: %v", err)
+			// Potentially return error or just log?
+		} else {
+			s.log.Info("Metrics exporter stopped.")
+		}
+	}
+	s.log.Info("Metrics service stopped.")
 	return nil
 }
 
-// collectMetrics regularly collects metrics from all registered collectors
-func (s *Service) collectMetrics(ctx context.Context) {
+// runCollectionLoop regularly collects metrics from all registered collectors
+func (s *Service) runCollectionLoop(ctx context.Context) {
 	ticker := time.NewTicker(s.config.CollectionInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			s.collect(ctx)
-		case <-s.stopCollection:
+			s.collectAndExport(ctx)
+		case <-s.stopChan:
+			s.log.Info("Stopping metrics collection loop.")
 			return
 		case <-ctx.Done():
+			s.log.Warnf("Metrics collection loop stopping due to context cancellation: %v", ctx.Err())
 			return
 		}
 	}
 }
 
-// collect gathers metrics from all collectors
-func (s *Service) collect(ctx context.Context) {
+// collectAndExport gathers metrics and pushes them to the exporter
+func (s *Service) collectAndExport(ctx context.Context) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	collectedMetrics := []Metric{}
 	for serviceType, collectors := range s.collectors {
 		for _, collector := range collectors {
 			metrics := collector.Collect(ctx)
-			for _, metric := range metrics {
-				// Ensure the service type is set
-				if metric.Service == "" {
-					metric.Service = serviceType
+			for i := range metrics {
+				// Ensure the service type is set correctly
+				if metrics[i].Service == "" {
+					metrics[i].Service = serviceType
 				}
-				s.storeMetric(metric)
+				// Add timestamp here before potential export/storage
+				metrics[i].Timestamp = time.Now()
 			}
+			collectedMetrics = append(collectedMetrics, metrics...)
 		}
 	}
 
-	// Clean up old metrics based on retention period
-	s.cleanupOldMetrics()
+	// Store/Process all collected metrics (in-memory for now)
+	for _, metric := range collectedMetrics {
+		s.metrics = append(s.metrics, metric)
+		s.processMetricAggregations(metric)
+	}
+
+	// Clean up old metrics based on retention period (only for in-memory store)
+	if s.config.StorageBackend == "memory" || s.config.StorageBackend == "" {
+		s.cleanupOldMetrics()
+	}
+
+	// Prepare data for exporter (using aggregated values for simplicity with current exporters)
+	exportData := s.getAggregatedMetricsMap()
+
+	s.mutex.Unlock()
+
+	// Export data if exporter exists
+	if s.exporter != nil && len(exportData) > 0 {
+		if err := s.exporter.Export(exportData); err != nil {
+			s.log.Errorf("Failed to export metrics: %v", err)
+		}
+	}
+}
+
+// getAggregatedMetricsMap converts current gauges/counters/histograms to map for exporter
+// NOTE: This is a simplification for the current basic exporters. A real Prometheus
+// exporter would likely register collectors/metrics directly.
+func (s *Service) getAggregatedMetricsMap() map[string]interface{} {
+	exportData := make(map[string]interface{})
+	for key, gauge := range s.gauges {
+		// Maybe add labels to key?
+		exportData[key] = gauge.value
+	}
+	for key, counter := range s.counters {
+		exportData[key] = counter.value
+	}
+	// TODO: How to represent histograms in simple map? Maybe just sum/count?
+	// for key, histo := range s.histograms {
+	// 	exportData[key+"_count"] = float64(histo.count)
+	// 	exportData[key+"_sum"] = histo.sum
+	// }
+	return exportData
 }
 
 // cleanupOldMetrics removes metrics older than the retention period
@@ -204,12 +295,26 @@ func (s *Service) RegisterCollector(serviceType ServiceType, collector Collector
 	s.collectors[serviceType] = append(s.collectors[serviceType], collector)
 }
 
-// storeMetric adds a metric to the storage
+// storeMetric processes and stores a single metric (potentially rename)
 func (s *Service) storeMetric(metric Metric) {
-	metric.Timestamp = time.Now()
-	s.metrics = append(s.metrics, metric)
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	// Process based on metric type
+	// Timestamp is now set in collectAndExport before calling this
+	// metric.Timestamp = time.Now()
+
+	// Append to raw metric log (if memory backend)
+	if s.config.StorageBackend == "memory" || s.config.StorageBackend == "" {
+		s.metrics = append(s.metrics, metric)
+	}
+
+	// Update aggregated views
+	s.processMetricAggregations(metric)
+}
+
+// processMetricAggregations updates aggregated views (gauges, counters, histograms)
+func (s *Service) processMetricAggregations(metric Metric) {
+	// Assumes lock is already held
 	switch metric.Type {
 	case MetricTypeGauge:
 		s.processGauge(metric)
@@ -283,52 +388,45 @@ func (s *Service) metricKey(name string, service ServiceType, labels map[string]
 	return key
 }
 
-// RecordGauge records a gauge metric
+// Recording methods (RecordGauge, RecordCounter, RecordHistogram)
+// These now call storeMetric which handles aggregation and memory storage.
+// Export happens periodically via the collectAndExport loop.
 func (s *Service) RecordGauge(name string, value float64, service ServiceType, labels map[string]string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	s.storeMetric(Metric{
 		Name:      name,
 		Type:      MetricTypeGauge,
 		Value:     value,
 		Labels:    labels,
 		Service:   service,
-		Timestamp: time.Now(),
+		Timestamp: time.Now(), // Timestamp for immediate recording
 	})
 }
 
-// RecordCounter records a counter metric
 func (s *Service) RecordCounter(name string, value float64, service ServiceType, labels map[string]string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	s.storeMetric(Metric{
 		Name:      name,
 		Type:      MetricTypeCounter,
 		Value:     value,
 		Labels:    labels,
 		Service:   service,
-		Timestamp: time.Now(),
+		Timestamp: time.Now(), // Timestamp for immediate recording
 	})
 }
 
-// RecordHistogram records a histogram metric
 func (s *Service) RecordHistogram(name string, value float64, service ServiceType, dimension string, buckets []float64, labels map[string]string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	s.storeMetric(Metric{
 		Name:       name,
 		Type:       MetricTypeHistogram,
 		Value:      value,
 		Labels:     labels,
 		Service:    service,
-		Timestamp:  time.Now(),
+		Timestamp:  time.Now(), // Timestamp for immediate recording
 		Dimensions: []string{dimension},
 		Buckets:    buckets,
 	})
 }
+
+// --- Get Methods (Primarily read from aggregated maps for efficiency) ---
 
 // GetGaugeValue retrieves the current value of a gauge
 func (s *Service) GetGaugeValue(name string, service ServiceType, labels map[string]string) (float64, bool) {
@@ -369,21 +467,24 @@ func (s *Service) GetHistogramData(name string, service ServiceType, labels map[
 	return histogram.count, histogram.sum, histogram.buckets, histogram.counts, true
 }
 
-// GetMetricsForService retrieves all metrics for a specific service
+// GetMetricsForService retrieves recent raw metrics for a specific service (from in-memory store)
 func (s *Service) GetMetricsForService(service ServiceType) []Metric {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	result := make([]Metric, 0)
-	for _, metric := range s.metrics {
+	// Iterate in reverse to get most recent first?
+	for i := len(s.metrics) - 1; i >= 0; i-- {
+		metric := s.metrics[i]
 		if metric.Service == service {
 			result = append(result, metric)
 		}
 	}
+	// Optional: Limit results?
 	return result
 }
 
-// GetAllMetrics retrieves all stored metrics
+// GetAllMetrics retrieves all stored raw metrics (from in-memory store)
 func (s *Service) GetAllMetrics() []Metric {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

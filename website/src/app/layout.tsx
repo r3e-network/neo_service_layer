@@ -19,14 +19,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/logo.svg" />
+        <meta name="theme-color" content="#60A5FA" />
         {/* @ts-ignore */}
         <Script src="https://cdn.jsdelivr.net/npm/@neoline/neo-line@latest/dist/neoline.min.js" strategy="beforeInteractive" />
       </head>
-      <body className="font-sans antialiased">
+      <body className="bg-gray-50 text-gray-900">
         <Providers>
-          <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
+          <div className="flex flex-col min-h-screen">
             <Navigation />
-            <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 pt-24">
+            <main className="flex-grow w-full z-10">
               {children}
             </main>
             <Footer />

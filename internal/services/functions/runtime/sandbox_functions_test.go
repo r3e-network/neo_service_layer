@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 func TestSandbox_BasicFunctions(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create sandbox with logger
 	sandbox := NewSandbox(SandboxConfig{
 		Logger: logger,
@@ -118,13 +119,13 @@ function main(args) {
 				assert.NotEmpty(t, output.Error, "Expected error in output")
 			} else {
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
-				
+
 				// For array manipulation and object transformation, we need special handling
 				if tt.name == "array manipulation" {
 					result, ok := output.Result.([]interface{})
 					assert.True(t, ok, "Result should be an array")
 					assert.Equal(t, 5, len(result), "Result should have 5 elements")
-					
+
 					// Check individual values without type checking
 					assert.Contains(t, result, int64(2), "Result should contain 2")
 					assert.Contains(t, result, int64(4), "Result should contain 4")
@@ -134,7 +135,7 @@ function main(args) {
 				} else if tt.name == "object transformation" {
 					result, ok := output.Result.(map[string]interface{})
 					assert.True(t, ok, "Result should be a map")
-					
+
 					// Check individual fields without type checking
 					assert.Equal(t, "John Doe", result["fullName"], "fullName should match")
 					assert.Equal(t, int64(25), result["age"], "age should match")
@@ -150,10 +151,10 @@ function main(args) {
 func TestSandbox_AsyncFunctions(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create sandbox with logger
 	sandbox := NewSandbox(SandboxConfig{
-		Logger:       logger,
+		Logger:        logger,
 		TimeoutMillis: 1000, // 1 second timeout
 	})
 
@@ -221,7 +222,7 @@ function main(args) {
 func TestSandbox_MemoryLimits(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create sandbox with low memory limit
 	sandbox := NewSandbox(SandboxConfig{
 		Logger:      logger,
@@ -272,7 +273,7 @@ function main(args) {
 			} else {
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
 			}
-			
+
 			// Check that memory usage is reported
 			assert.GreaterOrEqual(t, output.MemoryUsed, int64(0), "Memory usage should be reported")
 		})
@@ -282,10 +283,10 @@ function main(args) {
 func TestSandbox_ContextMethods(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create sandbox with interoperability enabled
 	sandbox := NewSandbox(SandboxConfig{
-		Logger:               logger,
+		Logger:                 logger,
 		EnableInteroperability: true,
 	})
 
@@ -333,7 +334,7 @@ function main(args) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := FunctionInput{
-				Code:           tt.code,
+				Code:            tt.code,
 				FunctionContext: tt.context,
 			}
 
@@ -352,7 +353,7 @@ function main(args) {
 func TestSandbox_MultipleExecutionsSequential(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create sandbox
 	sandbox := NewSandbox(SandboxConfig{
 		Logger: logger,
@@ -384,8 +385,19 @@ function main(args) {
 		results := make(chan *FunctionOutput, concurrentRuns)
 		errors := make(chan error, concurrentRuns)
 
+		// Use a WaitGroup to wait for all goroutines
+		var wg sync.WaitGroup
+		wg.Add(concurrentRuns)
+
 		for i := 0; i < concurrentRuns; i++ {
 			go func(num int) {
+				defer wg.Done()
+
+				// Create a NEW sandbox instance for each goroutine
+				localSandbox := NewSandbox(SandboxConfig{
+					Logger: logger, // Can potentially share logger if it's thread-safe
+				})
+
 				input := FunctionInput{
 					Code: `
 function main(args) {
@@ -399,7 +411,7 @@ function main(args) {
 					},
 				}
 
-				output, err := sandbox.Execute(context.Background(), input)
+				output, err := localSandbox.Execute(context.Background(), input)
 				if err != nil {
 					errors <- err
 					return
@@ -409,11 +421,19 @@ function main(args) {
 		}
 
 		// Collect results
-		for i := 0; i < concurrentRuns; i++ {
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		for {
 			select {
 			case err := <-errors:
 				t.Errorf("Error in concurrent execution: %v", err)
-			case output := <-results:
+			case output, ok := <-results:
+				if !ok {
+					return
+				}
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
 			case <-time.After(5 * time.Second):
 				t.Fatal("Timeout waiting for concurrent executions")

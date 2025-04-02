@@ -11,23 +11,25 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nspcc-dev/neo-go/pkg/util"
-	"github.com/will/neo_service_layer/internal/services/functions/runtime"
+	log "github.com/sirupsen/logrus"
+	runtime_sandbox "github.com/will/neo_service_layer/internal/services/functions/runtime/sandbox"
+	secrets_iface "github.com/will/neo_service_layer/internal/services/secrets"
 )
 
 // Service implements the Functions service
 type Service struct {
 	config           *Config
 	functions        map[string]*Function
-	sandbox          *runtime.Sandbox
+	sandbox          *runtime_sandbox.Sandbox
 	executions       map[string]*FunctionExecution
 	permissions      map[string]*FunctionPermissions
 	functionVersions map[string]map[int]*FunctionVersion
 	mu               sync.RWMutex
-	
+
 	// Service references for interoperability
 	gasBankService     interface{}
 	priceFeedService   interface{}
-	secretsService     interface{}
+	secretsService     secrets_iface.Service
 	triggerService     interface{}
 	transactionService interface{}
 }
@@ -55,16 +57,28 @@ func NewService(config *Config) (*Service, error) {
 		config.ServiceLayerURL = "http://localhost:3000" // Default service layer URL
 	}
 
+	// Validate that the secrets service reference is provided and conforms to the interface
+	var secretsService secrets_iface.Service
+	if config.SecretsService != nil {
+		var ok bool
+		secretsService, ok = config.SecretsService.(secrets_iface.Service)
+		if !ok {
+			return nil, errors.New("provided secretsService does not implement the secrets.Service interface")
+		}
+	} else {
+		log.Warn("Functions Service initialized without a Secrets Service reference. Secret access will not be available.")
+	}
+
 	// Create sandbox for JavaScript execution
-	sandboxConfig := runtime.SandboxConfig{
-		MemoryLimit:           config.MaxMemoryLimit,
-		TimeoutMillis:         config.MaxExecutionTime.Milliseconds(),
-		AllowNetwork:          config.EnableNetworkAccess,
-		AllowFileIO:           config.EnableFileIO,
-		ServiceLayerURL:       config.ServiceLayerURL,
+	sandboxConfig := runtime_sandbox.SandboxConfig{
+		MemoryLimit:            config.MaxMemoryLimit,
+		TimeoutMillis:          config.MaxExecutionTime.Milliseconds(),
+		AllowNetwork:           config.EnableNetworkAccess,
+		AllowFileIO:            config.EnableFileIO,
+		ServiceLayerURL:        config.ServiceLayerURL,
 		EnableInteroperability: config.EnableInteroperability,
 	}
-	sandbox := runtime.NewSandbox(sandboxConfig)
+	sandbox := runtime_sandbox.New(sandboxConfig)
 
 	return &Service{
 		config:           config,
@@ -73,11 +87,11 @@ func NewService(config *Config) (*Service, error) {
 		executions:       make(map[string]*FunctionExecution),
 		permissions:      make(map[string]*FunctionPermissions),
 		functionVersions: make(map[string]map[int]*FunctionVersion),
-		
+
 		// Initialize service references from config
 		gasBankService:     config.GasBankService,
 		priceFeedService:   config.PriceFeedService,
-		secretsService:     config.SecretsService,
+		secretsService:     secretsService,
 		triggerService:     config.TriggerService,
 		transactionService: config.TransactionService,
 	}, nil
@@ -299,7 +313,7 @@ func (s *Service) InvokeFunction(ctx context.Context, invocation FunctionInvocat
 	execution := &FunctionExecution{
 		ID:         executionID,
 		FunctionID: invocation.FunctionID,
-		Status:     "running",
+		Status:     "pending",
 		StartTime:  time.Now(),
 		Parameters: invocation.Parameters,
 		InvokedBy:  invocation.Caller,
@@ -311,14 +325,44 @@ func (s *Service) InvokeFunction(ctx context.Context, invocation FunctionInvocat
 	s.executions[executionID] = execution
 	s.mu.Unlock()
 
+	// Fetch *Encrypted* Secrets Before Execution
+	encryptedSecrets := make(map[string]string)
+	if s.secretsService != nil {
+		log.Debugf("Attempting to fetch encrypted secrets for function %s execution %s", function.ID, executionID)
+		potentialSecretNames := []string{}
+		if metaSecrets, ok := function.Metadata["secrets"].([]interface{}); ok {
+			for _, v := range metaSecrets {
+				if secretName, ok := v.(string); ok {
+					potentialSecretNames = append(potentialSecretNames, secretName)
+				}
+			}
+		}
+
+		for _, secretName := range potentialSecretNames {
+			// Assume secretName is the secretID for now. Might need a lookup if they differ.
+			secretID := secretName
+			encryptedValue, err := s.secretsService.GetEncryptedSecretForFunction(ctx, function.ID, secretID)
+			if err == nil {
+				encryptedSecrets[secretName] = encryptedValue
+				log.Debugf("Successfully fetched encrypted secret '%s' for function %s", secretName, function.ID)
+			} else {
+				log.Warnf("Failed to fetch encrypted secret '%s' for function %s: %v", secretName, function.ID, err)
+				// Decide if failure to fetch a secret should prevent execution
+				// For now, we continue and the secret will be unavailable in the function.
+			}
+		}
+	} else {
+		log.Warnf("Secrets service not available for function %s execution %s", function.ID, executionID)
+	}
+
 	// If async, return immediately
 	if invocation.Async {
-		go s.executeFunction(function, execution, invocation.Parameters)
+		go s.executeFunction(ctx, function, execution, invocation.Parameters, encryptedSecrets) // Pass encrypted secrets
 		return execution, nil
 	}
 
 	// Execute synchronously
-	s.executeFunction(function, execution, invocation.Parameters)
+	s.executeFunction(ctx, function, execution, invocation.Parameters, encryptedSecrets) // Pass encrypted secrets
 	return execution, nil
 }
 
@@ -409,7 +453,9 @@ func (s *Service) GetPermissions(ctx context.Context, functionID string) (*Funct
 }
 
 // executeFunction executes a function and updates the execution record
-func (s *Service) executeFunction(function *Function, execution *FunctionExecution, parameters map[string]interface{}) {
+func (s *Service) executeFunction(ctx context.Context, function *Function, execution *FunctionExecution, parameters map[string]interface{}, fetchedEncryptedSecrets map[string]string) {
+	execution.Status = "running"
+
 	// Check function status
 	if function.Status != FunctionStatusActive {
 		execution.Status = "failed"
@@ -419,62 +465,58 @@ func (s *Service) executeFunction(function *Function, execution *FunctionExecuti
 		return
 	}
 
-	// Prepare function context for interoperability
-	var functionContext *runtime.FunctionContext
+	// Prepare function context using the *new* sandbox types
+	var functionContext *runtime_sandbox.FunctionContext
 	if s.config.EnableInteroperability {
-		functionContext = &runtime.FunctionContext{
-			FunctionID:      function.ID,
-			ExecutionID:     execution.ID,
-			Owner:           function.Owner.StringLE(),
-			Parameters:      parameters,
-			TraceID:         execution.TraceID,
-			ServiceLayerURL: s.config.ServiceLayerURL,
-			Services: &runtime.ServiceClients{
-				Functions:   s,
-				GasBank:     s.gasBankService,
-				PriceFeed:   s.priceFeedService,
-				Secrets:     s.secretsService,
-				Trigger:     s.triggerService,
-				Transaction: s.transactionService,
-			},
+		// Define available service clients (only those defined in sandbox models)
+		clients := &runtime_sandbox.ServiceClients{
+			// Wallet: s.walletService, // Assuming walletService exists and is correct type
+			// Storage: s.storageService, // Assuming storageService exists and is correct type
+			// Oracle: s.oracleService, // Assuming oracleService exists and is correct type
 		}
-		
-		// Add caller if available
+
+		functionContext = runtime_sandbox.NewFunctionContext(function.ID)
+		functionContext.ExecutionID = execution.ID
+		functionContext.Owner = function.Owner.StringLE()
+		functionContext.Parameters = parameters
+		functionContext.TraceID = execution.TraceID
+		functionContext.ServiceLayerURL = s.config.ServiceLayerURL
+		functionContext.ServiceClients = clients // Assign only defined clients
+
 		if !execution.InvokedBy.Equals(util.Uint160{}) {
 			functionContext.Caller = execution.InvokedBy.StringLE()
 		}
-		
-		// Add environment variables
-		functionContext.Env = make(map[string]string)
 		if function.Metadata != nil {
-			if env, ok := function.Metadata["env"].(map[string]string); ok {
-				functionContext.Env = env
+			if env, ok := function.Metadata["env"].(map[string]interface{}); ok {
+				envMap := make(map[string]string)
+				for k, v := range env {
+					if vStr, ok := v.(string); ok {
+						envMap[k] = vStr
+					} else {
+						log.Warnf("Non-string value found in function metadata env for key %s", k)
+					}
+				}
+				functionContext.Environment = envMap
 			}
 		}
 	}
 
-	// Prepare input for sandbox
-	input := runtime.FunctionInput{
-		Code:            function.Code,
-		Args:            parameters,
-		Parameters:      parameters,
-		FunctionContext: functionContext,
+	// Prepare input for the *new* sandbox
+	input := runtime_sandbox.FunctionInput{
+		Code:       function.Code,
+		Args:       []interface{}{parameters},
+		Parameters: parameters,
+		Secrets:    fetchedEncryptedSecrets,
+		Context:    functionContext,
 	}
 
-	// Execute in sandbox
-	output, err := s.sandbox.Execute(context.Background(), input)
-	if err != nil {
-		execution.Status = "failed"
-		execution.Error = fmt.Sprintf("sandbox execution error: %v", err)
-		execution.EndTime = time.Now()
-		execution.Duration = execution.EndTime.Sub(execution.StartTime).Milliseconds()
-		return
-	}
+	// Execute in sandbox - new Execute returns only FunctionOutput
+	output := s.sandbox.Execute(ctx, input)
 
-	// Update execution with results
-	execution.EndTime = time.Now()
-	execution.Duration = output.Duration
-	execution.MemoryUsed = output.MemoryUsed
+	// Update execution with results, converting types
+	execution.EndTime = time.Now()                      // EndTime is set after execution returns
+	execution.Duration = output.Duration.Milliseconds() // Convert time.Duration to int64 ms
+	execution.MemoryUsed = int64(output.MemoryUsed)     // Convert uint64 to int64
 	execution.Result = output.Result
 	execution.Logs = output.Logs
 

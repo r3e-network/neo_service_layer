@@ -2,29 +2,20 @@ package secrets
 
 import "errors"
 
-// Define common errors for the Secrets service
+// Predefined errors for the secrets service.
 var (
-	// ErrSecretNotFound is returned when a secret is not found
-	ErrSecretNotFound = errors.New("secret not found")
+	ErrSecretNotFound      = errors.New("secret not found")
+	ErrPermissionDenied    = errors.New("permission denied")
+	ErrSecretTooLarge      = errors.New("secret size exceeds maximum limit")
+	ErrTooManySecrets      = errors.New("user has reached the maximum number of secrets")
+	ErrInvalidConfig       = errors.New("invalid service configuration")
+	ErrEncryptionFailed    = errors.New("secret encryption failed")
+	ErrDecryptionFailed    = errors.New("secret decryption failed")
+	ErrStoreFailed         = errors.New("failed to interact with secret store")
+	ErrDuplicateSecretName = errors.New("a secret with this name already exists")
+	ErrSecretExpired       = errors.New("secret has expired")
 
-	// ErrSecretExpired is returned when a secret has expired
-	ErrSecretExpired = errors.New("secret has expired")
-
-	// ErrSecretTooLarge is returned when a secret is too large
-	ErrSecretTooLarge = errors.New("secret is too large")
-
-	// ErrMaxSecretsReached is returned when user has reached the maximum number of secrets
-	ErrMaxSecretsReached = errors.New("maximum number of secrets reached")
-
-	// ErrReadOnlySecret is returned when trying to modify a read-only secret
-	ErrReadOnlySecret = errors.New("cannot modify read-only secret")
-
-	// ErrPermissionDenied is returned when a user does not have permission to access a secret
-	ErrPermissionDenied = errors.New("permission denied")
-
-	// ErrEncryptionFailed is returned when encryption fails
-	ErrEncryptionFailed = errors.New("encryption failed")
-
-	// ErrDecryptionFailed is returned when decryption fails
-	ErrDecryptionFailed = errors.New("decryption failed")
+	// Generic store errors (can be wrapped)
+	ErrNotFound      = errors.New("item not found in store")
+	ErrAlreadyExists = errors.New("item already exists in store")
 )

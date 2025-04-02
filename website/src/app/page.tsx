@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import '../styles/minimal.css';
+// import '../styles/minimal.css'; // Removed this import
 import { Hero } from '../components/Hero';
 import { Features } from '../components/Features';
 import { Services } from '../components/Services';

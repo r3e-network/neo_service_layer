@@ -8,14 +8,16 @@ import (
 	"time"
 )
 
-// MetricCollector collects system and application metrics
+// MetricCollector interface REMOVED
+/*
 type MetricCollector interface {
 	CollectMetrics() (map[string]interface{}, error)
 	Start() error
 	Stop() error
 }
+*/
 
-// SystemCollector collects system metrics
+// SystemCollector collects system metrics and implements the Collector interface from metrics.go
 type SystemCollector struct {
 	interval     time.Duration
 	stopChan     chan struct{}
@@ -34,39 +36,69 @@ func NewSystemCollector(interval time.Duration, metricsStore *Service) *SystemCo
 	}
 }
 
-// CollectMetrics collects system metrics
-func (c *SystemCollector) CollectMetrics() (map[string]interface{}, error) {
-	metrics := make(map[string]interface{})
+// Collect implements the Collector interface
+func (c *SystemCollector) Collect(ctx context.Context) []Metric {
+	collectedMetrics := []Metric{}
 
 	// Collect memory stats
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-	metrics["system_memory_alloc"] = float64(memStats.Alloc)
-	metrics["system_memory_total_alloc"] = float64(memStats.TotalAlloc)
-	metrics["system_memory_sys"] = float64(memStats.Sys)
-	metrics["system_memory_num_gc"] = float64(memStats.NumGC)
+	// Convert to Metric struct
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "system_memory_alloc", Type: MetricTypeGauge,
+		Value: float64(memStats.Alloc), Service: ServiceAPI, // Assign Service type here or rely on collector registration
+		Labels: map[string]string{"collector": "system"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "system_memory_total_alloc", Type: MetricTypeCounter, // TotalAlloc is cumulative
+		Value: float64(memStats.TotalAlloc), Service: ServiceAPI,
+		Labels: map[string]string{"collector": "system"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "system_memory_sys", Type: MetricTypeGauge,
+		Value: float64(memStats.Sys), Service: ServiceAPI,
+		Labels: map[string]string{"collector": "system"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "system_memory_num_gc", Type: MetricTypeCounter, // NumGC is cumulative
+		Value: float64(memStats.NumGC), Service: ServiceAPI,
+		Labels: map[string]string{"collector": "system"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "system_goroutines", Type: MetricTypeGauge,
+		Value: float64(runtime.NumGoroutine()), Service: ServiceAPI,
+		Labels: map[string]string{"collector": "system"},
+	})
 
-	// Collect CPU stats - this is a mock implementation
-	metrics["system_cpu_usage"] = 50.0 // Mock value
-	metrics["system_goroutines"] = float64(runtime.NumGoroutine())
+	// Mock CPU usage
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "system_cpu_usage", Type: MetricTypeGauge,
+		Value: 50.0, Service: ServiceAPI,
+		Labels: map[string]string{"collector": "system"},
+	})
 
-	// Store metrics in the metrics store
-	for name, value := range metrics {
-		switch v := value.(type) {
-		case float64:
-			c.metricsStore.RecordGauge(name, v, ServiceAPI, map[string]string{"collector": "system"})
-		case int64:
-			c.metricsStore.RecordCounter(name, float64(v), ServiceAPI, map[string]string{"collector": "system"})
-		}
+	// Update internal cache (optional, maybe remove CollectMetrics method later)
+	metricsMap := make(map[string]interface{})
+	for _, m := range collectedMetrics {
+		metricsMap[m.Name] = m.Value
 	}
-
-	// Update last metrics
 	c.mutex.Lock()
-	c.lastMetrics = metrics
+	c.lastMetrics = metricsMap
 	c.mutex.Unlock()
 
-	return metrics, nil
+	return collectedMetrics
+}
+
+// CollectMetrics method might become redundant if only Collect interface is used by the service.
+// Keeping it for now in case it's used elsewhere.
+func (c *SystemCollector) CollectMetrics() (map[string]interface{}, error) {
+	metrics := c.Collect(context.Background()) // Call the interface method
+	metricsMap := make(map[string]interface{})
+	for _, m := range metrics {
+		metricsMap[m.Name] = m.Value
+	}
+	return metricsMap, nil
 }
 
 // Start starts the system collector
@@ -85,18 +117,23 @@ func (c *SystemCollector) Stop() error {
 func (c *SystemCollector) collectLoop() {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
-
+	ctx := context.Background() // Create a background context
 	for {
 		select {
 		case <-ticker.C:
-			c.CollectMetrics()
+			// Directly call the Collect method which now returns []Metric
+			metrics := c.Collect(ctx)
+			// Push metrics to the central service store
+			for _, m := range metrics {
+				c.metricsStore.storeMetric(m) // Use the reference
+			}
 		case <-c.stopChan:
 			return
 		}
 	}
 }
 
-// Neo3Collector collects Neo blockchain metrics
+// Neo3Collector collects Neo blockchain metrics and implements Collector
 type Neo3Collector struct {
 	interval     time.Duration
 	stopChan     chan struct{}
@@ -115,32 +152,52 @@ func NewNeo3Collector(interval time.Duration, metricsStore *Service) *Neo3Collec
 	}
 }
 
-// CollectMetrics collects Neo blockchain metrics
-func (c *Neo3Collector) CollectMetrics() (map[string]interface{}, error) {
-	metrics := make(map[string]interface{})
+// Collect implements the Collector interface
+func (c *Neo3Collector) Collect(ctx context.Context) []Metric {
+	collectedMetrics := []Metric{}
 
 	// These are mock implementations
-	metrics["neo_blocks_processed"] = int64(12345)
-	metrics["neo_transactions_processed"] = int64(67890)
-	metrics["neo_gas_used"] = float64(123.45)
-	metrics["neo_contract_calls"] = int64(789)
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "neo_blocks_processed", Type: MetricTypeCounter,
+		Value: 12345, Service: ServiceAPI, // TODO: Define a Neo service type?
+		Labels: map[string]string{"collector": "neo3"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "neo_transactions_processed", Type: MetricTypeCounter,
+		Value: 67890, Service: ServiceAPI,
+		Labels: map[string]string{"collector": "neo3"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "neo_gas_used", Type: MetricTypeGauge,
+		Value: 123.45, Service: ServiceAPI,
+		Labels: map[string]string{"collector": "neo3"},
+	})
+	collectedMetrics = append(collectedMetrics, Metric{
+		Name: "neo_contract_calls", Type: MetricTypeCounter,
+		Value: 789, Service: ServiceAPI,
+		Labels: map[string]string{"collector": "neo3"},
+	})
 
-	// Store metrics in the metrics store
-	for name, value := range metrics {
-		switch v := value.(type) {
-		case float64:
-			c.metricsStore.RecordGauge(name, v, ServiceAPI, map[string]string{"collector": "neo3"})
-		case int64:
-			c.metricsStore.RecordCounter(name, float64(v), ServiceAPI, map[string]string{"collector": "neo3"})
-		}
+	// Update internal cache (optional)
+	metricsMap := make(map[string]interface{})
+	for _, m := range collectedMetrics {
+		metricsMap[m.Name] = m.Value
 	}
-
-	// Update last metrics
 	c.mutex.Lock()
-	c.lastMetrics = metrics
+	c.lastMetrics = metricsMap
 	c.mutex.Unlock()
 
-	return metrics, nil
+	return collectedMetrics
+}
+
+// CollectMetrics method might become redundant
+func (c *Neo3Collector) CollectMetrics() (map[string]interface{}, error) {
+	metrics := c.Collect(context.Background())
+	metricsMap := make(map[string]interface{})
+	for _, m := range metrics {
+		metricsMap[m.Name] = m.Value
+	}
+	return metricsMap, nil
 }
 
 // Start starts the Neo blockchain collector
@@ -159,18 +216,21 @@ func (c *Neo3Collector) Stop() error {
 func (c *Neo3Collector) collectLoop() {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
-
+	ctx := context.Background()
 	for {
 		select {
 		case <-ticker.C:
-			c.CollectMetrics()
+			metrics := c.Collect(ctx)
+			for _, m := range metrics {
+				c.metricsStore.storeMetric(m)
+			}
 		case <-c.stopChan:
 			return
 		}
 	}
 }
 
-// ServiceCollector collects service-specific metrics
+// ServiceCollector collects service-specific metrics and implements Collector
 type ServiceCollector struct {
 	interval     time.Duration
 	stopChan     chan struct{}
@@ -193,41 +253,58 @@ func NewServiceCollector(interval time.Duration, metricsStore *Service, services
 	}
 }
 
-// CollectMetrics collects service-specific metrics
-func (c *ServiceCollector) CollectMetrics() (map[string]interface{}, error) {
-	metrics := make(map[string]interface{})
+// Collect implements the Collector interface
+func (c *ServiceCollector) Collect(ctx context.Context) []Metric {
+	collectedMetrics := []Metric{}
 
 	// This is a mock implementation
 	for _, service := range c.services {
 		// Service uptime
-		metrics[fmt.Sprintf("%s_uptime", service)] = float64(time.Now().Unix() - 1640995200) // Mock value
-
+		collectedMetrics = append(collectedMetrics, Metric{
+			Name: fmt.Sprintf("%s_uptime", service), Type: MetricTypeGauge,
+			Value: float64(time.Now().Unix() - 1640995200), Service: c.serviceType,
+			Labels: map[string]string{"collector": "service"},
+		})
 		// Service requests
-		metrics[fmt.Sprintf("%s_requests_total", service)] = int64(1000) // Mock value
-
+		collectedMetrics = append(collectedMetrics, Metric{
+			Name: fmt.Sprintf("%s_requests_total", service), Type: MetricTypeCounter,
+			Value: 1000, Service: c.serviceType,
+			Labels: map[string]string{"collector": "service"},
+		})
 		// Service errors
-		metrics[fmt.Sprintf("%s_errors_total", service)] = int64(10) // Mock value
-
+		collectedMetrics = append(collectedMetrics, Metric{
+			Name: fmt.Sprintf("%s_errors_total", service), Type: MetricTypeCounter,
+			Value: 10, Service: c.serviceType,
+			Labels: map[string]string{"collector": "service"},
+		})
 		// Service latency
-		metrics[fmt.Sprintf("%s_latency", service)] = float64(0.123) // Mock value
+		collectedMetrics = append(collectedMetrics, Metric{
+			Name: fmt.Sprintf("%s_latency", service), Type: MetricTypeGauge,
+			Value: 0.123, Service: c.serviceType,
+			Labels: map[string]string{"collector": "service"},
+		})
 	}
 
-	// Store metrics in the metrics store
-	for name, value := range metrics {
-		switch v := value.(type) {
-		case float64:
-			c.metricsStore.RecordGauge(name, v, c.serviceType, map[string]string{"collector": "service"})
-		case int64:
-			c.metricsStore.RecordCounter(name, float64(v), c.serviceType, map[string]string{"collector": "service"})
-		}
+	// Update internal cache (optional)
+	metricsMap := make(map[string]interface{})
+	for _, m := range collectedMetrics {
+		metricsMap[m.Name] = m.Value
 	}
-
-	// Update last metrics
 	c.mutex.Lock()
-	c.lastMetrics = metrics
+	c.lastMetrics = metricsMap
 	c.mutex.Unlock()
 
-	return metrics, nil
+	return collectedMetrics
+}
+
+// CollectMetrics method might become redundant
+func (c *ServiceCollector) CollectMetrics() (map[string]interface{}, error) {
+	metrics := c.Collect(context.Background())
+	metricsMap := make(map[string]interface{})
+	for _, m := range metrics {
+		metricsMap[m.Name] = m.Value
+	}
+	return metricsMap, nil
 }
 
 // Start starts the service collector
@@ -246,25 +323,18 @@ func (c *ServiceCollector) Stop() error {
 func (c *ServiceCollector) collectLoop() {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
-
+	ctx := context.Background()
 	for {
 		select {
 		case <-ticker.C:
-			c.CollectMetrics()
+			metrics := c.Collect(ctx)
+			for _, m := range metrics {
+				c.metricsStore.storeMetric(m)
+			}
 		case <-c.stopChan:
 			return
 		}
 	}
-}
-
-// Collect implements the Collector interface from the metrics package
-func (c *ServiceCollector) Collect(ctx context.Context) []Metric {
-	metrics := make([]Metric, 0)
-
-	// This would be expanded in a real implementation to collect actual service metrics
-	// For now, just return some sample metrics
-
-	return metrics
 }
 
 // RecordAPIServiceMetrics records metrics for the API service

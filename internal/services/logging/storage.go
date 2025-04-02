@@ -3,9 +3,15 @@ package logging
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // LogStorage defines the interface for log storage
@@ -18,10 +24,10 @@ type LogStorage interface {
 
 // InMemoryStorage is an in-memory implementation of LogStorage
 type InMemoryStorage struct {
-	entries     []LogEntry
-	indices     map[string]map[string][]int // Field -> Value -> []index
-	mutex       sync.RWMutex
-	maxEntries  int
+	entries    []LogEntry
+	indices    map[string]map[string][]int // Field -> Value -> []index
+	mutex      sync.RWMutex
+	maxEntries int
 }
 
 // NewInMemoryStorage creates a new in-memory log storage
@@ -248,33 +254,119 @@ func (s *InMemoryStorage) rebuildIndices() {
 	}
 }
 
-// FileStorage is a file-based implementation of LogStorage
+// FileStorage is a file-based implementation of LogStorage using zap and lumberjack
 type FileStorage struct {
-	// This is a stub implementation
-	// In a real implementation, this would handle file I/O
+	logger *zap.Logger
+	config Config       // Store config for query/delete logic if needed
+	closer func() error // Function to close/sync the logger
 }
 
 // NewFileStorage creates a new file-based log storage
-func NewFileStorage(filePath string) (*FileStorage, error) {
-	return &FileStorage{}, nil
+func NewFileStorage(config *Config) (*FileStorage, error) {
+	if config.LogFilePath == "" {
+		return nil, errors.New("LogFilePath is required for FileStorage")
+	}
+
+	// Ensure log directory exists
+	logDir := filepath.Dir(config.LogFilePath)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory %s: %w", logDir, err)
+	}
+
+	// Configure lumberjack for rotation
+	ljLogger := &lumberjack.Logger{
+		Filename:   config.LogFilePath,
+		MaxSize:    config.MaxSizeInMB, // megabytes
+		MaxBackups: config.RetainedFiles,
+		MaxAge:     0, // Retain based on number of files (MaxBackups)
+		Compress:   config.EnableCompression,
+		LocalTime:  true,
+	}
+
+	// Configure zap encoder
+	encoderCfg := zap.NewProductionEncoderConfig()
+	encoderCfg.TimeKey = "timestamp" // Match LogEntry field
+	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	var encoder zapcore.Encoder
+	if config.EnableJSONLogs {
+		encoder = zapcore.NewJSONEncoder(encoderCfg)
+	} else {
+		encoder = zapcore.NewConsoleEncoder(encoderCfg) // Or use TextFormatter simulation?
+	}
+
+	// Configure zap core
+	logLevel := zapcore.InfoLevel // Default
+	if err := logLevel.UnmarshalText([]byte(config.LogLevel)); err != nil {
+		// Log warning? Use default.
+	}
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(ljLogger),
+		logLevel,
+	)
+
+	// Create zap logger
+	logger := zap.New(core)
+
+	closerFunc := func() error {
+		// Sync flushes buffered logs
+		err := logger.Sync()
+		_ = ljLogger.Close() // Close the underlying file
+		return err
+	}
+
+	return &FileStorage{logger: logger, config: *config, closer: closerFunc}, nil
 }
 
 // Store stores a log entry in the file
 func (s *FileStorage) Store(entry LogEntry) error {
-	return fmt.Errorf("not implemented")
+	// Convert context map to zap fields
+	zapFields := make([]zap.Field, 0, len(entry.Context)+2)
+	zapFields = append(zapFields, zap.String("service", entry.Service))
+	// Maybe add entry.ID?
+	// zapFields = append(zapFields, zap.String("log_id", entry.ID))
+	for k, v := range entry.Context {
+		zapFields = append(zapFields, zap.Any(k, v))
+	}
+
+	// Log based on level
+	switch ParseLogLevel(entry.Level) { // Use helper from service.go
+	case LogLevelDebug:
+		s.logger.Debug(entry.Message, zapFields...)
+	case LogLevelInfo:
+		s.logger.Info(entry.Message, zapFields...)
+	case LogLevelWarn:
+		s.logger.Warn(entry.Message, zapFields...)
+	case LogLevelError:
+		s.logger.Error(entry.Message, zapFields...)
+	default:
+		s.logger.Info(entry.Message, zapFields...) // Default to Info
+	}
+
+	return nil
 }
 
 // Query queries log entries from the file
 func (s *FileStorage) Query(query LogQuery) ([]LogEntry, error) {
-	return nil, fmt.Errorf("not implemented")
+	// Implementing efficient querying on rotated log files is complex.
+	// Requires reading potentially multiple files, parsing (JSON/text),
+	// filtering by timestamp, level, service, context, and free text.
+	// This often justifies using external log aggregation systems (ELK, Loki, etc.).
+	// Returning "not implemented" for now.
+	return nil, errors.New("querying file storage is not implemented")
 }
 
 // DeleteBefore deletes entries older than a specific time
 func (s *FileStorage) DeleteBefore(t time.Time) error {
-	return fmt.Errorf("not implemented")
+	// Log rotation is handled by lumberjack based on size/count.
+	// Manual deletion by timestamp is not directly supported by this setup.
+	return errors.New("deleting logs by time is not supported by file storage implementation")
 }
 
-// Close closes the file
+// Close closes the file logger
 func (s *FileStorage) Close() error {
+	if s.closer != nil {
+		return s.closer()
+	}
 	return nil
 }

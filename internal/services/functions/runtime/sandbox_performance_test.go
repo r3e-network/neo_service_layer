@@ -20,9 +20,9 @@ func TestSandbox_Performance(t *testing.T) {
 
 	// Create a standard sandbox configuration for testing
 	sandboxConfig := SandboxConfig{
-		Logger:      logger,
-		MemoryLimit: 10 * 1024 * 1024, // 10MB
-		TimeoutMillis:     5000,
+		Logger:        logger,
+		MemoryLimit:   10 * 1024 * 1024, // 10MB
+		TimeoutMillis: 5000,
 	}
 
 	t.Run("ExecutionTime", func(t *testing.T) {
@@ -70,7 +70,7 @@ function main(args) {
 		// The JavaScript execution time should be less than the Go execution time
 		jsExecutionTime, ok := result["executionTime"].(float64)
 		assert.True(t, ok, "JS execution time should be a number")
-		assert.Less(t, jsExecutionTime, float64(executionTime.Milliseconds()), 
+		assert.Less(t, jsExecutionTime, float64(executionTime.Milliseconds()),
 			"JS execution time should be less than Go execution time")
 	})
 
@@ -184,7 +184,7 @@ function main(args) {
 		// Verify the results
 		for i := 0; i < numSandboxes; i++ {
 			assert.NoError(t, errors[i], "Sandbox %d should not return an error", i)
-			
+
 			result, ok := results[i].(map[string]interface{})
 			assert.True(t, ok, "Result %d should be a map", i)
 			assert.Equal(t, float64(i), result["id"], "Result %d should have correct ID", i)
@@ -195,7 +195,7 @@ function main(args) {
 	t.Run("LongRunningExecution", func(t *testing.T) {
 		// Create a sandbox with a longer timeout
 		sandbox := NewSandbox(SandboxConfig{
-			Logger:  logger,
+			Logger:        logger,
 			TimeoutMillis: 10000, // 10 seconds
 		})
 
@@ -236,7 +236,7 @@ function main(args) {
 		result, ok := output.Result.(map[string]interface{})
 		assert.True(t, ok, "Result should be a map")
 		assert.Equal(t, float64(5000), result["sleepTime"], "Sleep time should be 5000ms")
-		
+
 		actualTime, ok := result["actualTime"].(float64)
 		assert.True(t, ok, "Actual time should be a number")
 		assert.GreaterOrEqual(t, actualTime, float64(5000), "Actual time should be at least 5000ms")
@@ -245,7 +245,7 @@ function main(args) {
 	t.Run("TimeoutExecution", func(t *testing.T) {
 		// Create a sandbox with a short timeout
 		sandbox := NewSandbox(SandboxConfig{
-			Logger:  logger,
+			Logger:        logger,
 			TimeoutMillis: 1000, // 1 second
 		})
 
@@ -279,7 +279,7 @@ function main(args) {
 
 		// Log the execution time
 		t.Logf("Timeout execution time: %v", executionTime)
-		
+
 		// The execution time should be close to the timeout
 		assert.Less(t, executionTime, 2*time.Second, "Execution time should be less than 2 seconds")
 		assert.GreaterOrEqual(t, executionTime, 1*time.Second, "Execution time should be at least 1 second")
@@ -357,7 +357,10 @@ function main(args) {
 			// Verify the result
 			result, ok := output.Result.(map[string]interface{})
 			assert.True(t, ok, "Result should be a map")
-			assert.Equal(t, float64(i), result["iteration"], "Iteration should match")
+
+			// Handle potential int64 or float64 from Goja
+			iterationValue := result["iteration"]
+			assert.Equal(t, fmt.Sprintf("%v", i), fmt.Sprintf("%v", iterationValue), "Iteration should match")
 		}
 
 		// Calculate average execution time
@@ -369,9 +372,9 @@ function main(args) {
 
 		// Log the execution times
 		t.Logf("Average execution time over %d iterations: %v", numIterations, averageTime)
-		
+
 		// Verify that the sandbox is reusable
-		assert.Less(t, averageTime, 50*time.Millisecond, 
+		assert.Less(t, averageTime, 50*time.Millisecond,
 			"Average execution time should be reasonable for a simple function")
 	})
 
@@ -435,17 +438,17 @@ function main(args) {
 		// Verify the result
 		result, ok := output.Result.(map[string]interface{})
 		assert.True(t, ok, "Result should be a map")
-		
+
 		original, ok := result["original"].(map[string]interface{})
 		assert.True(t, ok, "Original should be a map")
-		
+
 		roundTrip, ok := result["roundTrip"].(map[string]interface{})
 		assert.True(t, ok, "RoundTrip should be a map")
-		
-		// Verify specific values
-		assert.Equal(t, float64(15), original["arraySum"], "Array sum should be 15")
-		assert.Equal(t, float64(25), original["functionResult"], "Function result should be 25")
-		assert.Equal(t, float64(15), roundTrip["arraySum"], "Round-trip array sum should be 15")
+
+		// Verify specific values, comparing string representations for type flexibility
+		assert.Equal(t, "15", fmt.Sprintf("%v", original["arraySum"]), "Array sum should be 15")
+		assert.Equal(t, "25", fmt.Sprintf("%v", original["functionResult"]), "Function result should be 25")
+		assert.Equal(t, "15", fmt.Sprintf("%v", roundTrip["arraySum"]), "Round-trip array sum should be 15")
 	})
 }
 
@@ -453,7 +456,7 @@ function main(args) {
 func BenchmarkSandbox_Execute(b *testing.B) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create a sandbox
 	sandbox := NewSandbox(SandboxConfig{
 		Logger: logger,
@@ -492,7 +495,7 @@ function main(args) {
 func BenchmarkSandbox_ComplexCode(b *testing.B) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create a sandbox
 	sandbox := NewSandbox(SandboxConfig{
 		Logger: logger,
@@ -562,10 +565,10 @@ function main(args) {
 func BenchmarkSandbox_Concurrent(b *testing.B) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Number of concurrent sandboxes
 	numSandboxes := 10
-	
+
 	// Create multiple sandboxes
 	sandboxes := make([]*Sandbox, numSandboxes)
 	for i := 0; i < numSandboxes; i++ {
@@ -593,26 +596,26 @@ function main(args) {
 	// Run the benchmark
 	for i := 0; i < b.N; i++ {
 		var wg sync.WaitGroup
-		
+
 		for j := 0; j < numSandboxes; j++ {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
-				
+
 				input := FunctionInput{
 					Code: code,
 					Args: map[string]interface{}{
 						"id": index,
 					},
 				}
-				
+
 				_, err := sandboxes[index].Execute(context.Background(), input)
 				if err != nil {
 					b.Errorf("Execute returned an error: %v", err)
 				}
 			}(j)
 		}
-		
+
 		wg.Wait()
 	}
 }

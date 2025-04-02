@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/nspcc-dev/neo-go/pkg/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -14,24 +15,24 @@ import (
 func TestSandbox_ServiceInteroperability(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create a mock service clients
 	mockServices := &ServiceClients{
-		Functions: &mockFunctionService{},
-		GasBank: &mockGasBankService{},
-		PriceFeed: &mockPriceFeedService{},
-		Secrets: &mockSecretsService{},
-		Trigger: &mockTriggerService{},
+		Functions:   &mockFunctionService{},
+		GasBank:     &mockGasBankService{},
+		PriceFeed:   &mockPriceFeedService{},
+		Secrets:     &mockSecretsService{},
+		Trigger:     &mockTriggerService{},
 		Transaction: &mockTransactionService{},
 	}
-	
+
 	// Create sandbox with interoperability enabled
 	sandbox := NewSandbox(SandboxConfig{
-		Logger:               logger,
+		Logger:                 logger,
 		EnableInteroperability: true,
-		ServiceLayerURL:      "https://api.neo-service-layer.test",
+		ServiceLayerURL:        "https://api.neo-service-layer.test",
 	})
-	
+
 	tests := []struct {
 		name        string
 		code        string
@@ -270,7 +271,7 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				// Check that all interactions were completed
 				assert.NotEmpty(t, result["apiKey"], "API key should not be empty")
 				assert.NotNil(t, result["btcPrice"], "BTC price should not be nil")
@@ -279,7 +280,7 @@ function main(args) {
 				assert.NotEmpty(t, result["txHash"], "Transaction hash should not be empty")
 				assert.NotEmpty(t, result["triggerId"], "Trigger ID should not be empty")
 				assert.NotNil(t, result["invocationResult"], "Invocation result should not be nil")
-				
+
 				// Check logs
 				assert.GreaterOrEqual(t, len(output.Logs), 2, "Should have at least 2 log messages")
 			},
@@ -309,7 +310,7 @@ function main(args) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := FunctionInput{
-				Code:           tt.code,
+				Code:            tt.code,
 				FunctionContext: tt.context,
 			}
 
@@ -320,7 +321,7 @@ function main(args) {
 				assert.NotEmpty(t, output.Error, "Expected error in output")
 			} else {
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
-				
+
 				if tt.checkFunc != nil {
 					tt.checkFunc(t, output)
 				}
@@ -333,20 +334,20 @@ function main(args) {
 func TestSandbox_TriggerMethods(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create mock service clients
 	mockServices := &ServiceClients{
 		Trigger: &mockTriggerService{},
 	}
-	
+
 	// Create sandbox with interoperability enabled
 	sandbox := NewSandbox(SandboxConfig{
-		MemoryLimit:          DefaultMemoryLimit,
-		TimeoutMillis:        5000,
+		MemoryLimit:            DefaultMemoryLimit,
+		TimeoutMillis:          5000,
 		EnableInteroperability: true,
-		Logger:               logger,
+		Logger:                 logger,
 	})
-	
+
 	tests := []struct {
 		name        string
 		code        string
@@ -400,7 +401,7 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				// The sandbox returns an array of maps directly
 				triggers, ok := result["triggers"].([]map[string]interface{})
 				if !ok {
@@ -408,7 +409,7 @@ function main(args) {
 					genericTriggers, ok := result["triggers"].([]interface{})
 					assert.True(t, ok, "Triggers should be an array")
 					assert.NotEmpty(t, genericTriggers, "Trigger list should not be empty")
-					
+
 					// Check the first trigger
 					if len(genericTriggers) > 0 {
 						trigger, ok := genericTriggers[0].(map[string]interface{})
@@ -457,20 +458,20 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				// Check blockchain event
 				blockchain, ok := result["blockchain"].(map[string]interface{})
 				assert.True(t, ok, "Blockchain event should be a map")
 				assert.True(t, blockchain["success"].(bool), "Blockchain event should be successful")
 				assert.NotEmpty(t, blockchain["eventId"], "Blockchain event should have an ID")
-				
+
 				// Check schedule event
 				schedule, ok := result["schedule"].(map[string]interface{})
 				assert.True(t, ok, "Schedule event should be a map")
 				assert.True(t, schedule["success"].(bool), "Schedule event should be successful")
 				assert.NotEmpty(t, schedule["eventId"], "Schedule event should have an ID")
 				assert.Equal(t, "0 0 * * *", schedule["cronExpression"], "Schedule should have correct cron expression")
-				
+
 				// Check API event
 				api, ok := result["api"].(map[string]interface{})
 				assert.True(t, ok, "API event should be a map")
@@ -510,13 +511,13 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				// Check created trigger result
 				created, ok := result["created"].(map[string]interface{})
 				assert.True(t, ok, "Created result should be a map")
 				assert.True(t, created["success"].(bool), "Create should be successful")
 				assert.NotEmpty(t, created["triggerId"], "Should have a trigger ID")
-				
+
 				// The list might be returned in different formats depending on the implementation
 				// Try different approaches to validate it
 				if list, ok := result["list"].([]interface{}); ok {
@@ -532,11 +533,11 @@ function main(args) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := FunctionInput{
-				Code:           tt.code,
+				Code:            tt.code,
 				FunctionContext: tt.context,
 			}
 
@@ -547,7 +548,7 @@ function main(args) {
 				assert.NotEmpty(t, output.Error, "Expected error in output")
 			} else {
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
-				
+
 				if tt.checkFunc != nil {
 					tt.checkFunc(t, output)
 				}
@@ -561,20 +562,20 @@ function main(args) {
 func TestSandbox_ErrorHandling(t *testing.T) {
 	// Create a test logger
 	logger, _ := zap.NewDevelopment()
-	
+
 	// Create a mock service clients
 	mockServices := &ServiceClients{
-		Functions: &mockFunctionService{},
-		GasBank: &mockGasBankService{},
-		PriceFeed: &mockPriceFeedService{},
-		Secrets: &mockSecretsService{},
-		Trigger: &mockTriggerService{},
+		Functions:   &mockFunctionService{},
+		GasBank:     &mockGasBankService{},
+		PriceFeed:   &mockPriceFeedService{},
+		Secrets:     &mockSecretsService{},
+		Trigger:     &mockTriggerService{},
 		Transaction: &mockTransactionService{},
 	}
-	
+
 	// Create sandbox with interoperability enabled
 	sandbox := NewSandbox(SandboxConfig{
-		Logger:               logger,
+		Logger:                 logger,
 		EnableInteroperability: true,
 	})
 
@@ -606,11 +607,11 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				success, ok := result["success"].(bool)
 				assert.True(t, ok, "Success should be a boolean")
 				assert.False(t, success, "Operation should fail")
-				
+
 				assert.NotEmpty(t, result["error"], "Error message should not be empty")
 			},
 		},
@@ -636,7 +637,7 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				// Note: With our mock implementation, this will actually succeed
 				// In a real implementation, it would fail for a non-existent ID
 				success, ok := result["success"].(bool)
@@ -668,7 +669,7 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok, "Result should be a map")
-				
+
 				// Note: With our mock implementation, this will actually succeed
 				// In a real implementation, it would fail for a non-existent function
 				success, ok := result["success"].(bool)
@@ -684,7 +685,7 @@ function main(args) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := FunctionInput{
-				Code:           tt.code,
+				Code:            tt.code,
 				FunctionContext: tt.context,
 			}
 
@@ -695,7 +696,7 @@ function main(args) {
 				assert.NotEmpty(t, output.Error, "Expected error in output")
 			} else {
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
-				
+
 				if tt.checkFunc != nil {
 					tt.checkFunc(t, output)
 				}
@@ -745,6 +746,19 @@ func (m *mockSecretsService) Get(key string) (string, error) {
 	return secrets[key], nil
 }
 
+// Add methods required by the sandbox wrapper interfaces
+func (m *mockSecretsService) GetSecret(ctx context.Context, functionID, key string) (string, error) {
+	return m.Get(key)
+}
+func (m *mockSecretsService) SetSecret(ctx context.Context, functionID, key, value string) error {
+	// Mock doesn't actually store, just return nil
+	return nil
+}
+func (m *mockSecretsService) DeleteSecret(ctx context.Context, functionID, key string) error {
+	// Mock doesn't actually store, just return nil
+	return nil
+}
+
 type mockTriggerService struct{}
 
 func (m *mockTriggerService) List() ([]interface{}, error) {
@@ -777,58 +791,67 @@ func (m *mockTransactionService) Create(config map[string]interface{}) (string, 
 	return "tx-123", nil
 }
 
-func (m *mockTransactionService) Sign(id string) (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"id":      id,
-		"signed":  true,
-		"rawData": "0x123456789abcdef",
+// Use the signature expected by the TxSigner interface
+func (m *mockTransactionService) Sign(txID string, account *wallet.Account) (map[string]interface{}, error) {
+	return map[string]interface{}{ // Return a map consistent with what the wrapper expects
+		"id":     txID,
+		"status": "signed", // Use 'status' key
 	}, nil
 }
 
-func (m *mockTransactionService) Send(id string) (string, error) {
+// Use the signature expected by the TxSender interface
+func (m *mockTransactionService) Send(ctx context.Context, id string) (string, error) {
 	return "0xabcdef123456789", nil
 }
 
-func (m *mockTransactionService) Status(hash string) (string, error) {
+// Use the signature expected by the TxStatusGetter interface
+func (m *mockTransactionService) Status(id string) (string, error) {
 	return "confirmed", nil
 }
 
+// Use the signature expected by the TxGetter interface
 func (m *mockTransactionService) Get(id string) (map[string]interface{}, error) {
-	return map[string]interface{}{
+	return map[string]interface{}{ // Return a map consistent with what the wrapper expects
 		"id":       id,
 		"to":       "0x1234567890abcdef",
 		"value":    "1.5",
 		"data":     "0xabcdef",
 		"gasLimit": 21000,
+		"status":   "confirmed", // Add status for completeness
 	}, nil
 }
 
+// Use the signature expected by the TxLister interface
 func (m *mockTransactionService) List() ([]interface{}, error) {
-	return []interface{}{
-		map[string]interface{}{
+	return []interface{}{ // Return a slice of interfaces consistent with what the wrapper expects
+		map[string]interface{}{ // Each item should be a map
 			"id":       "tx-1",
 			"to":       "0x1234567890abcdef",
 			"value":    "1.0",
 			"data":     "0xabcdef",
 			"gasLimit": 21000,
+			"status":   "confirmed",
 		},
-		map[string]interface{}{
+		map[string]interface{}{ // Each item should be a map
 			"id":       "tx-2",
 			"to":       "0x1234567890abcdef",
 			"value":    "2.0",
 			"data":     "0xabcdef",
 			"gasLimit": 21000,
+			"status":   "confirmed",
 		},
-		map[string]interface{}{
+		map[string]interface{}{ // Each item should be a map
 			"id":       "tx-3",
 			"to":       "0x1234567890abcdef",
 			"value":    "3.0",
 			"data":     "0xabcdef",
 			"gasLimit": 21000,
+			"status":   "confirmed",
 		},
 	}, nil
 }
 
+// Use the signature expected by the TxFeeEstimator interface
 func (m *mockTransactionService) EstimateFee(config map[string]interface{}) (string, error) {
 	return "0.001", nil
 }

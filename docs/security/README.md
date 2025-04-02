@@ -327,10 +327,10 @@ updates:
 For security support:
 - Email: security@neo-service-layer.io
 - Discord: [Neo Service Layer Community](https://discord.gg/neo-service-layer)
-- GitHub Issues: [Report a security issue](https://github.com/will/neo_service_layer/security)
+- GitHub Issues: [Report a security issue](https://github.com/r3e-network/neo_service_layer/security)
 
 ## Security Contacts
 
 - Security Team: security@neo-service-layer.io
 - Bug Bounty Program: https://hackerone.com/neo-service-layer
-- Security Advisories: https://github.com/will/neo_service_layer/security/advisories 
+- Security Advisories: https://github.com/r3e-network/neo_service_layer/security/advisories 

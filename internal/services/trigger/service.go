@@ -3,20 +3,24 @@ package trigger
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/nspcc-dev/neo-go/pkg/util"
+	log "github.com/sirupsen/logrus"
 	"github.com/will/neo_service_layer/internal/core/neo"
+	functions_iface "github.com/will/neo_service_layer/internal/services/functions"
 	"github.com/will/neo_service_layer/internal/services/trigger/internal"
 	"github.com/will/neo_service_layer/internal/services/trigger/models"
 )
 
 // ServiceConfig represents the trigger service configuration
 type ServiceConfig struct {
-	MaxTriggers     int
-	MaxExecutions   int
-	ExecutionWindow time.Duration
+	MaxTriggers           int           // Maximum triggers per user
+	MaxExecutions         int           // Maximum executions per trigger
+	ExecutionWindow       time.Duration // Window to track executions
+	MaxConcurrentTriggers int           // Max concurrent triggers running
 }
 
 // Service represents the trigger service
@@ -26,26 +30,51 @@ type Service struct {
 	metrics   internal.TriggerMetricsCollector
 	alerts    internal.TriggerAlertManager
 	scheduler internal.TriggerScheduler
-	neoClient *neo.Client
+	neoClient neo.NeoClient
+	stopChan  chan struct{}
+	wg        sync.WaitGroup
+	config    *ServiceConfig
 }
 
 // NewService creates a new trigger service
-func NewService(config *ServiceConfig, neoClient *neo.Client) (*Service, error) {
+func NewService(config *ServiceConfig, neoClient neo.NeoClient, funcService functions_iface.IService, walletService internal.WalletService) (*Service, error) {
+	if config == nil {
+		config = &ServiceConfig{
+			MaxTriggers:           100,
+			MaxExecutions:         1000,
+			ExecutionWindow:       time.Hour * 24,
+			MaxConcurrentTriggers: 10,
+		}
+	}
+
+	// Create trigger policy from config
+	policy := &models.TriggerPolicy{
+		MaxTriggersPerUser:      config.MaxTriggers,
+		MaxExecutionsPerTrigger: config.MaxExecutions,
+		ExecutionWindow:         config.ExecutionWindow.Milliseconds(),
+		MaxConcurrentExecutions: config.MaxConcurrentTriggers,
+		MinInterval:             time.Minute.Milliseconds(),
+		MaxInterval:             (time.Hour * 24).Milliseconds(),
+		CooldownPeriod:          (time.Minute * 5).Milliseconds(),
+	}
+
+	// Initialize sub-components
 	store := internal.NewTriggerStore()
 	metrics := internal.NewTriggerMetricsCollector()
 	alerts := internal.NewTriggerAlertManager()
 	scheduler := internal.NewTriggerScheduler()
 
-	policy := &models.TriggerPolicy{
-		MaxTriggersPerUser:      config.MaxTriggers,
-		MaxExecutionsPerTrigger: config.MaxExecutions,
-		ExecutionWindow:         config.ExecutionWindow,
-		MinInterval:             time.Minute,
-		MaxInterval:             time.Hour * 24,
-		CooldownPeriod:          time.Minute * 5,
-	}
-
-	manager := internal.NewTriggerManager(store, metrics, alerts, scheduler, policy, neoClient)
+	// Create the trigger manager
+	manager := internal.NewTriggerManager(
+		store,
+		metrics,
+		alerts,
+		scheduler,
+		policy,
+		neoClient,
+		funcService,
+		walletService,
+	)
 
 	return &Service{
 		manager:   manager,
@@ -54,6 +83,8 @@ func NewService(config *ServiceConfig, neoClient *neo.Client) (*Service, error) 
 		alerts:    alerts,
 		scheduler: scheduler,
 		neoClient: neoClient,
+		stopChan:  make(chan struct{}),
+		config:    config,
 	}, nil
 }
 
@@ -163,21 +194,73 @@ func (s *Service) UpdateTriggerPolicy(ctx context.Context, policy *models.Trigge
 	return s.manager.UpdatePolicy(policy)
 }
 
-// handlers stores the registered trigger handlers
-type handlers map[string]TriggerHandler
-
-// Start starts the trigger service
+// Start starts the trigger service components, including the scheduler check loop
 func (s *Service) Start(ctx context.Context) error {
-	// In a real implementation, this would start all components
-	// For now, return nil to indicate success
+	if err := s.scheduler.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start scheduler: %w", err)
+	}
+
+	// Start the main check loop
+	s.wg.Add(1)
+	go s.runSchedulerCheckLoop()
+
+	log.Info("Trigger service started")
 	return nil
 }
 
-// Stop stops the trigger service
+// Stop stops the trigger service components
 func (s *Service) Stop(ctx context.Context) error {
-	// In a real implementation, this would stop all components
-	// For now, return nil to indicate success
+	log.Info("Stopping trigger service...")
+	close(s.stopChan) // Signal goroutines to stop
+
+	if err := s.scheduler.Stop(ctx); err != nil {
+		log.Errorf("Failed to stop scheduler cleanly: %v", err)
+		// Continue stopping other components
+	}
+
+	s.wg.Wait() // Wait for goroutines to finish
+	log.Info("Trigger service stopped")
 	return nil
+}
+
+// runSchedulerCheckLoop periodically checks for due triggers
+func (s *Service) runSchedulerCheckLoop() {
+	defer s.wg.Done()
+	// Use a check interval from config or default
+	checkInterval := s.config.ExecutionWindow / 10 // Example: check 10 times per window
+	if checkInterval < 5*time.Second {             // Ensure a minimum check interval
+		checkInterval = 5 * time.Second
+	}
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	log.Infof("Starting trigger scheduler check loop with interval: %v", checkInterval)
+
+	for {
+		select {
+		case <-ticker.C:
+			// TODO: Get list of all active trigger IDs from the store
+			// For each trigger ID:
+			//   isDue, err := s.scheduler.IsDue(triggerID)
+			//   if err { log error }
+			//   if isDue {
+			//     log.Infof("Trigger %s is due for execution", triggerID)
+			//     // Spawn goroutine to execute? Avoid blocking loop.
+			//     go func(tID string) {
+			//        execCtx, cancel := context.WithTimeout(context.Background(), s.config.ExecutionWindow) // Timeout per execution
+			//        defer cancel()
+			//        // Need userAddress here? GetTrigger requires it.
+			//        // Maybe ListTriggers first, then check IsDue?
+			//        _, err := s.ExecuteTrigger(execCtx, ???, tID)
+			//        if err != nil { log error }
+			//     }(triggerID)
+			//   }
+			log.Debug("Trigger check loop iteration complete.") // Placeholder log
+		case <-s.stopChan:
+			log.Info("Stopping trigger scheduler check loop.")
+			return
+		}
+	}
 }
 
 // RegisterHandler registers a trigger handler

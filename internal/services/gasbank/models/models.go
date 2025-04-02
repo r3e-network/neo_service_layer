@@ -138,3 +138,94 @@ type GasUsageMetrics struct {
 	Refills        int
 	FailedRefills  int
 }
+
+// Config represents the GasBank service configuration
+type Config struct {
+	// Pool Management
+	InitialGas      *big.Int      `yaml:"initialGas"`
+	RefillAmount    *big.Int      `yaml:"refillAmount"`
+	RefillThreshold *big.Int      `yaml:"refillThreshold"`
+	CooldownPeriod  time.Duration `yaml:"cooldownPeriod"`
+
+	// Temporary Allocation Policy (Existing)
+	MaxAllocationPerUser    *big.Int      `yaml:"maxAllocationPerUser"`
+	MinAllocationAmount     *big.Int      `yaml:"minAllocationAmount"`
+	MaxAllocationTime       time.Duration `yaml:"maxAllocationTime"`
+	ExpirationCheckInterval time.Duration `yaml:"expirationCheckInterval"`
+
+	// Persistent Balances & Fees (New)
+	EnableUserBalances bool     `yaml:"enableUserBalances"` // Flag to enable persistent balances
+	MinDepositAmount   *big.Int `yaml:"minDepositAmount"`
+	WithdrawalFee      *big.Int `yaml:"withdrawalFee"`
+	// Add policy configurations for fee payments?
+
+	// General
+	StoreType       string        `yaml:"storeType"` // memory, badger, etc.
+	StorePath       string        `yaml:"storePath"`
+	MonitorInterval time.Duration `yaml:"monitorInterval"`
+	// AlertConfig     *alerting.AlertConfig `yaml:"alertConfig"` // Assuming alerting exists
+	NeoNodeURL string `yaml:"neoNodeUrl"`
+	WalletPath string `yaml:"walletPath"`
+	WalletPass string `yaml:"walletPass"` // For service signing
+}
+
+// GasPoolState represents the state of the global gas pool.
+type GasPoolState struct {
+	AvailableGas *big.Int
+	LastRefill   time.Time
+	LockedGas    *big.Int // Total gas currently allocated/locked
+}
+
+// UserBalance represents a user's persistent GAS balance managed by the service.
+type UserBalance struct {
+	UserID        util.Uint160 `json:"userId"`
+	Balance       *big.Int     `json:"balance"`       // Current available balance (GAS decimals = 8)
+	LockedBalance *big.Int     `json:"lockedBalance"` // Balance currently locked for operations
+	UpdatedAt     time.Time    `json:"updatedAt"`
+}
+
+// FeePolicy defines rules for when the GasBank pays fees.
+// This is a simplified example; could be more complex.
+type FeePolicy struct {
+	PolicyID         string         `json:"policyId"`
+	UserID           util.Uint160   `json:"userId"`           // User this policy applies to
+	PayForOthers     bool           `json:"payForOthers"`     // Allow paying for arbitrary transactions signed by this user?
+	AllowedContracts []util.Uint160 `json:"allowedContracts"` // Pay only if tx calls one of these contracts
+	MaxFeePerTx      *big.Int       `json:"maxFeePerTx"`      // Max fee to cover per transaction
+	IsEnabled        bool           `json:"isEnabled"`
+}
+
+// GasClaim represents a request from a user to claim GAS.
+type GasClaim struct {
+	UserID          util.Uint160  `json:"userId"`
+	ClaimTxUnsigned []byte        `json:"claimTxUnsigned"` // User-signed tx (claim GAS), needs service signature
+	Status          string        `json:"status"`          // Pending, Submitted, Failed, Confirmed?
+	SubmittedTxHash *util.Uint256 `json:"submittedTxHash,omitempty"`
+	Error           string        `json:"error,omitempty"`
+	CreatedAt       time.Time     `json:"createdAt"`
+	RequestID       string        `json:"requestId"` // Added Request ID
+}
+
+// WithdrawalRecord tracks the state of a withdrawal request.
+type WithdrawalRecord struct {
+	RequestID   string        `json:"requestId"`
+	UserID      util.Uint160  `json:"userId"`
+	Amount      *big.Int      `json:"amount"`      // Amount requested by user (excluding fee)
+	TotalLocked *big.Int      `json:"totalLocked"` // Amount + Fee locked
+	Status      string        `json:"status"`      // Pending, Processing, Submitted, Confirmed, Failed
+	TxHash      *util.Uint256 `json:"txHash,omitempty"`
+	Error       string        `json:"error,omitempty"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+}
+
+// PendingSponsorship tracks funds locked for potential fee payment.
+type PendingSponsorship struct {
+	SponsorshipID string       `json:"sponsorshipId"` // Unique ID for this lock
+	TxHash        util.Uint256 `json:"txHash"`        // Hash of the transaction needing sponsorship (or proposed hash?)
+	UserID        util.Uint160 `json:"userId"`
+	LockedAmount  *big.Int     `json:"lockedAmount"` // Amount locked from user balance
+	Status        string       `json:"status"`       // Pending, Confirmed, Cancelled
+	CreatedAt     time.Time    `json:"createdAt"`
+	ExpiresAt     time.Time    `json:"expiresAt"` // Add expiry for automatic cleanup?
+}

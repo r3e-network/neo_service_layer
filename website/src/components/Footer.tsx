@@ -65,100 +65,127 @@ const navigation = {
 
 export function Footer() {
   return (
-    <footer className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-      <div className="mx-auto max-w-7xl overflow-hidden px-6 py-20 sm:py-24 lg:px-8">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-12">
-          <div className="mb-8 md:mb-0">
-            <div className="flex items-center">
-              <div className="h-10 w-10 mr-3 relative">
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 40C31.0457 40 40 31.0457 40 20C40 8.9543 31.0457 0 20 0C8.9543 0 0 8.9543 0 20C0 31.0457 8.9543 40 20 40Z" fill="#00E599" fillOpacity="0.1"/>
-                  <path d="M28.5 11H11.5L20 26L28.5 11Z" stroke="#00E599" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M20 26V32" stroke="#00E599" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M16 18L20 26L24 18" stroke="#00E599" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Neo Service Layer</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Enterprise-grade blockchain services</p>
-              </div>
+    <footer className="relative bg-gray-50 overflow-hidden border-t border-gray-200">
+      {/* Remove background decoration elements */}
+      {/* <div className="absolute bottom-0 right-0 ..." /> */}
+      {/* <div className="absolute top-0 left-0 ..." /> */}
+      
+      <div className="mx-auto max-w-7xl overflow-hidden px-6 py-16 sm:py-20 lg:px-8">
+        {/* Newsletter Subscription */}
+        <div className="mb-16 p-6 lg:p-8 rounded-2xl bg-gradient-to-br from-white to-gray-100 shadow-lg ring-1 ring-gray-900/5">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="mb-6 lg:mb-0 lg:max-w-xl">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Subscribe to our newsletter</h2>
+              <p className="text-sm text-gray-600">Stay updated with the latest features, tutorials, and resources for Neo Service Layer.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 sm:max-w-md w-full">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="form-input flex-grow text-sm rounded-md border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500"
+                aria-label="Email address"
+              />
+              <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-all duration-200 ease-in-out whitespace-nowrap hover:scale-[1.03] active:scale-[0.98]">
+                Subscribe
+              </button>
             </div>
           </div>
-          <div className="flex space-x-6">
-            {navigation.social.map((item) => (
-              <Link 
-                key={item.name} 
-                href={item.href} 
-                className="text-gray-500 hover:text-green-500 dark:text-gray-400 dark:hover:text-green-400 transition-colors duration-200"
-              >
-                <span className="sr-only">{item.name}</span>
-                <item.icon className="h-6 w-6" aria-hidden="true" />
-              </Link>
-            ))}
+        </div>
+        
+        <div className="flex flex-col md:flex-row justify-between items-start mb-12 gap-8">
+          <div className="mb-8 md:mb-0">
+            <div className="flex items-center group">
+              <div className="h-10 w-10 mr-3 relative group-hover:scale-110 transition-transform duration-300">
+                 <img src="/logo.svg" alt="Neo Service Layer Logo" className="w-full h-full"/>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Neo Service Layer</h2>
+                <p className="text-sm text-gray-500">Enterprise-grade blockchain services</p>
+              </div>
+            </div>
+            
+            <div className="mt-6 text-sm text-gray-500 max-w-xs">
+              <p>Providing reliable infrastructure for Neo N3 with real-time price feeds, automated contract execution, and secure TEE environments.</p>
+            </div>
+            
+            <div className="mt-6 flex space-x-4">
+              {navigation.social.map((item) => (
+                <Link 
+                  key={item.name} 
+                  href={item.href} 
+                  className="text-gray-500 hover:text-blue-600 transition-colors duration-300 hover:scale-110 transform p-1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span className="sr-only">{item.name}</span>
+                  <item.icon className="h-6 w-6" aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
           </div>
+
+          <nav className="grid grid-cols-1 sm:grid-cols-3 gap-8 md:gap-10 lg:gap-16 w-full md:max-w-3xl" aria-label="Footer">
+            <div>
+              <h3 className="text-sm font-semibold leading-6 text-gray-900 uppercase tracking-wider">Main</h3>
+              <ul role="list" className="mt-6 space-y-4">
+                {navigation.main.map((item) => (
+                  <li key={item.name}>
+                    <Link 
+                      href={item.href} 
+                      className="text-sm leading-6 text-gray-600 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      {item.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold leading-6 text-gray-900 uppercase tracking-wider">Services</h3>
+              <ul role="list" className="mt-6 space-y-4">
+                {navigation.services.map((item) => (
+                  <li key={item.name}>
+                    <Link 
+                      href={item.href} 
+                      className="text-sm leading-6 text-gray-600 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      {item.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold leading-6 text-gray-900 uppercase tracking-wider">Resources</h3>
+              <ul role="list" className="mt-6 space-y-4">
+                {navigation.resources.map((item) => (
+                  <li key={item.name}>
+                    <Link 
+                      href={item.href} 
+                      className="text-sm leading-6 text-gray-600 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      {item.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </nav>
         </div>
 
-        <nav className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 lg:gap-16" aria-label="Footer">
-          <div>
-            <h3 className="text-sm font-semibold leading-6 text-gray-900 dark:text-white">Main</h3>
-            <ul role="list" className="mt-6 space-y-4">
-              {navigation.main.map((item) => (
-                <li key={item.name}>
-                  <Link 
-                    href={item.href} 
-                    className="text-sm leading-6 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-200"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold leading-6 text-gray-900 dark:text-white">Services</h3>
-            <ul role="list" className="mt-6 space-y-4">
-              {navigation.services.map((item) => (
-                <li key={item.name}>
-                  <Link 
-                    href={item.href} 
-                    className="text-sm leading-6 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-200"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold leading-6 text-gray-900 dark:text-white">Resources</h3>
-            <ul role="list" className="mt-6 space-y-4">
-              {navigation.resources.map((item) => (
-                <li key={item.name}>
-                  <Link 
-                    href={item.href} 
-                    className="text-sm leading-6 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-200"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </nav>
-
-        <div className="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 md:mb-0">
+        <div className="mt-10 pt-8 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row justify-between items-center">
+            <p className="text-sm text-gray-500 mb-4 sm:mb-0">
               &copy; {new Date().getFullYear()} Neo Service Layer. All rights reserved.
             </p>
-            <div className="flex space-x-6">
-              <Link href="/privacy" className="text-sm text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-200">
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+              <Link href="/privacy" className="text-sm text-gray-500 hover:text-blue-600 transition-colors duration-200">
                 Privacy Policy
               </Link>
-              <Link href="/terms" className="text-sm text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-200">
+              <Link href="/terms" className="text-sm text-gray-500 hover:text-blue-600 transition-colors duration-200">
                 Terms of Service
               </Link>
-              <Link href="/contact" className="text-sm text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors duration-200">
+              <Link href="/contact" className="text-sm text-gray-500 hover:text-blue-600 transition-colors duration-200">
                 Contact Us
               </Link>
             </div>

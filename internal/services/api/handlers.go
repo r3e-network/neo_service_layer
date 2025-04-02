@@ -1,14 +1,18 @@
 package api
 
 import (
+	"crypto/elliptic"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nspcc-dev/neo-go/pkg/crypto/keys"
 	"github.com/nspcc-dev/neo-go/pkg/util"
-	"github.com/pkg/errors"
 	"github.com/will/neo_service_layer/internal/services/functions"
 )
 
@@ -59,24 +63,86 @@ func (s *Service) handleVerifySignature(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate request
-	if req.Address == "" || req.Message == "" || req.Signature == "" {
-		respondError(w, http.StatusBadRequest, "Missing required fields", "Address, message, and signature are required")
+	if req.Address == "" || req.Message == "" || req.Signature == "" || req.PublicKey == "" {
+		respondError(w, http.StatusBadRequest, "Missing required fields", "Address, message, signature, and public key are required")
 		return
 	}
 
-	// In a real implementation, this would verify the signature against the address
-	// Here we're just providing a placeholder implementation
+	// --- Start Actual Signature Verification ---
+	validSignature := false
+	var verificationErr error
+	var providedScriptHash util.Uint160
+	var pubKey *keys.PublicKey
+	sigBytes := []byte{}
+	msgHash := []byte{}
 
-	// Convert address to script hash
-	scriptHash, err := util.Uint160DecodeStringLE(req.Address)
+	// 1. Decode signature from hex
+	sigBytes, err := hex.DecodeString(req.Signature)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid address", err.Error())
+		verificationErr = errors.New("invalid signature format (not hex)")
+	} else if len(sigBytes) != 64 {
+		verificationErr = errors.New("invalid signature length")
+	}
+
+	// 2. Decode provided address string to script hash (Uint160)
+	if verificationErr == nil {
+		providedScriptHash, err = util.Uint160DecodeStringLE(req.Address)
+		if err != nil {
+			verificationErr = errors.New("invalid address format")
+		}
+	}
+
+	// 3. Decode public key from hex
+	if verificationErr == nil {
+		pubKeyBytes, err := hex.DecodeString(req.PublicKey)
+		if err != nil {
+			verificationErr = errors.New("invalid public key format (not hex)")
+		} else {
+			pubKey, err = keys.NewPublicKeyFromBytes(pubKeyBytes, elliptic.P256())
+			if err != nil {
+				verificationErr = errors.New("invalid public key bytes")
+			}
+		}
+	}
+
+	// 4. Hash the message (SHA256)
+	if verificationErr == nil {
+		msgBytes := []byte(req.Message)
+		hash := sha256.Sum256(msgBytes)
+		msgHash = hash[:]
+	}
+
+	// 5. Verify Signature and Address Match
+	if verificationErr == nil {
+		// Verify the signature against the message hash and public key
+		if pubKey.Verify(sigBytes, msgHash) {
+			// Check if the derived address matches the provided address
+			derivedScriptHash := pubKey.GetScriptHash()
+			if derivedScriptHash.Equals(providedScriptHash) {
+				validSignature = true
+			} else {
+				verificationErr = errors.New("signature valid for public key, but address does not match")
+			}
+		} else {
+			verificationErr = errors.New("signature verification failed")
+		}
+	}
+	// --- End Actual Signature Verification ---
+
+	if !validSignature {
+		errMsg := "Signature verification failed"
+		var details string
+		if verificationErr != nil {
+			details = verificationErr.Error() // Get the error message string
+		}
+		respondError(w, http.StatusUnauthorized, errMsg, details) // Pass string detail
 		return
 	}
 
+	// If verification was successful:
 	// Generate JWT token
 	_, tokenString, err := s.tokenAuth.Encode(map[string]interface{}{
-		"address": req.Address,
+		"address": req.Address, // Use the verified address string
 		"exp":     time.Now().Add(s.config.JWTExpiryDuration).Unix(),
 	})
 	if err != nil {
@@ -86,9 +152,9 @@ func (s *Service) handleVerifySignature(w http.ResponseWriter, r *http.Request) 
 
 	// Build response
 	resp := SignatureVerificationResponse{
-		Valid:      true,
+		Valid:      true, // Only true if we reach here
 		Address:    req.Address,
-		ScriptHash: scriptHash,
+		ScriptHash: providedScriptHash, // Use the hash derived from the validated address
 	}
 
 	// Set token as header

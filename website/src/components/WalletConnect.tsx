@@ -1,163 +1,77 @@
 'use client';
 
-// @ts-ignore
-import * as React from 'react';
-import { WalletOutlined } from '@ant-design/icons';
+import React from 'react';
+import ConnectButton from './ConnectButton';
+import { useWallet } from '@/hooks/useWallet';
 import { ServiceClient } from '../lib/serviceClient';
-
-interface WalletInfo {
-  address: string;
-  network: string;
-  balance: {
-    NEO: string;
-    GAS: string;
-  };
-}
 
 interface WalletConnectProps {
   onConnect?: (client: ServiceClient | null) => void;
 }
 
 export function WalletConnect({ onConnect }: WalletConnectProps) {
-  const [isConnected, setIsConnected] = React.useState(false);
-  const [isConnecting, setIsConnecting] = React.useState(false);
-  const [walletInfo, setWalletInfo] = React.useState<WalletInfo | null>(null);
-  const [isClient, setIsClient] = React.useState(false);
+  const walletState = useWallet();
+  const { address, isConnected } = walletState;
 
-  // Set isClient to true when component mounts in the browser
+  // Create and provide the ServiceClient when wallet is connected
   React.useEffect(() => {
-    setIsClient(true);
+    console.log('WalletConnect: Wallet state changed', { isConnected, address });
     
-    // Check if wallet is already connected
-    const checkWalletConnection = async () => {
-      if (typeof window !== 'undefined' && window.neo3Wallet) {
-        try {
-          const account = await window.neo3Wallet.getAccount();
-          if (account && account.address) {
-            handleConnect();
-          }
-        } catch (error) {
-          console.log('No wallet connected yet');
-        }
-      }
-    };
-    
-    checkWalletConnection();
-  }, []);
-
-  const handleConnect = async () => {
-    if (!isClient) return;
-    
-    setIsConnecting(true);
-    try {
-      if (!window.neo3Wallet) {
-        throw new Error('Neo N3 wallet not found. Please install a compatible wallet.');
-      }
-
-      // Get wallet info
-      const [account, balance, network] = await Promise.all([
-        window.neo3Wallet.getAccount(),
-        window.neo3Wallet.getBalance(),
-        window.neo3Wallet.getNetwork(),
-      ]);
-
-      setWalletInfo({
-        address: account.address,
-        network,
-        balance,
-      });
-
-      // Create and pass service client to parent
+    if (isConnected && address) {
+      console.log('WalletConnect: Creating ServiceClient with connected wallet');
+      
+      // Create a service client that uses the wallet to sign messages
       const client = new ServiceClient({
         signMessage: async (message: string) => {
-          if (!window.neo3Wallet) {
-            throw new Error('Neo wallet not available');
+          if (typeof window === 'undefined') {
+            throw new Error('Window is not defined');
           }
-          return await window.neo3Wallet.signMessage(message);
+          
+          console.log('WalletConnect: Signing message with wallet');
+          
+          try {
+            // Try neo3Dapi first (NEO N3)
+            if (window.neo3Dapi) {
+              console.log('WalletConnect: Using neo3Dapi for signing');
+              const result = await window.neo3Dapi.signMessage({
+                message,
+                address
+              });
+              // Return the signature itself
+              console.log('WalletConnect: Signature result from neo3Dapi', result);
+              return result.signature || result.data;
+            }
+            
+            // Fallback to legacy NeoLine
+            if (window.NEOLine && window.NEOLine.instance) {
+              console.log('WalletConnect: Using legacy NeoLine for signing');
+              const result = await window.NEOLine.instance.signMessage({
+                message,
+                address
+              });
+              // Return the signature itself
+              console.log('WalletConnect: Signature result from NEOLine', result);
+              return result.signature || result.data;
+            }
+            
+            console.error('WalletConnect: No compatible wallet found for signing');
+            throw new Error('Neo wallet not available');
+          } catch (error) {
+            console.error('WalletConnect: Error signing message:', error);
+            throw error;
+          }
         },
       });
-
+      
+      // Pass the client to parent component
+      console.log('WalletConnect: Providing ServiceClient to parent');
       onConnect?.(client);
-      setIsConnected(true);
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      alert(error instanceof Error ? error.message : 'Failed to connect wallet');
-    } finally {
-      setIsConnecting(false);
+    } else {
+      console.log('WalletConnect: Clearing ServiceClient (wallet disconnected)');
+      // Clear the client when disconnected
+      onConnect?.(null);
     }
-  };
+  }, [isConnected, address, onConnect]);
 
-  const handleDisconnect = () => {
-    setWalletInfo(null);
-    setIsConnected(false);
-    onConnect?.(null);
-  };
-
-  // Don't render anything during SSR
-  if (!isClient) {
-    return (
-      <button className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold text-white shadow-sm bg-blue-600">
-        <WalletOutlined />
-        Connect Wallet
-      </button>
-    );
-  }
-
-  if (isConnected && walletInfo) {
-    return (
-      <div className="inline-flex items-center gap-4 rounded-full bg-white dark:bg-gray-800 px-6 py-3 shadow-sm ring-1 ring-gray-900/5">
-        <div className="flex items-center gap-2">
-          <WalletOutlined className="text-green-500" />
-          <span className="text-sm font-medium text-gray-900 dark:text-white">
-            Connected
-          </span>
-        </div>
-        <div className="h-5 w-px bg-gray-900/5 dark:bg-gray-700" />
-        <div className="flex flex-col">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {walletInfo.network}
-          </span>
-          <span className="text-sm font-medium text-gray-900 dark:text-white">
-            {`${walletInfo.address.slice(0, 6)}...${walletInfo.address.slice(-4)}`}
-          </span>
-        </div>
-        <div className="h-5 w-px bg-gray-900/5 dark:bg-gray-700" />
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 dark:text-gray-400">NEO:</span>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              {walletInfo.balance.NEO}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 dark:text-gray-400">GAS:</span>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              {walletInfo.balance.GAS}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={handleDisconnect}
-          className="rounded-full bg-red-50 dark:bg-red-900/20 px-3 py-1 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-        >
-          Disconnect
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={handleConnect}
-      disabled={isConnecting}
-      className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold text-white shadow-sm transition-all duration-200 ${
-        isConnecting
-          ? 'bg-blue-400 cursor-not-allowed'
-          : 'bg-blue-600 hover:bg-blue-500'
-      }`}
-    >
-      <WalletOutlined />
-      {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-    </button>
-  );
+  return <ConnectButton />;
 }

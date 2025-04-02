@@ -5,7 +5,7 @@ Command-line interface for managing the Neo N3 Service Layer.
 ## Installation
 
 ```bash
-go install github.com/will/neo_service_layer/cmd/cli
+go install github.com/r3e-network/neo_service_layer/cmd/cli
 ```
 
 ## Configuration

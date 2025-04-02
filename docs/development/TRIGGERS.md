@@ -473,4 +473,4 @@ export const metricTrigger: NeoTrigger = {
 For trigger development support:
 - Email: dev@neo-service-layer.io
 - Discord: [Neo Service Layer Community](https://discord.gg/neo-service-layer)
-- GitHub Issues: [Report a bug](https://github.com/will/neo_service_layer/issues) 
+- GitHub Issues: [Report a bug](https://github.com/r3e-network/neo_service_layer/issues) 

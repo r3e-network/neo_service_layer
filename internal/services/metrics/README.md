@@ -11,7 +11,7 @@ import (
     "context"
     "time"
     
-    "github.com/will/neo_service_layer/internal/services/metrics"
+    "github.com/r3e-network/neo_service_layer/internal/services/metrics"
 )
 
 func main() {

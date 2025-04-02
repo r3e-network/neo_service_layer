@@ -112,7 +112,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.create method
 	t.Run("transaction.create", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.create
@@ -138,7 +139,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.sign method
 	t.Run("transaction.sign", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.sign
@@ -158,7 +160,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.send method
 	t.Run("transaction.send", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.send
@@ -179,7 +182,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.status method
 	t.Run("transaction.status", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.status
@@ -199,7 +203,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.get method
 	t.Run("transaction.get", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.get
@@ -221,7 +226,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.list method
 	t.Run("transaction.list", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.list
@@ -243,7 +249,8 @@ func TestSandboxTransactionMethods(t *testing.T) {
 	// Test transaction.estimateFee method
 	t.Run("transaction.estimateFee", func(t *testing.T) {
 		// Create a JavaScript function context
-		jsContext := sandbox.createFunctionContext(functionContext, []string{})
+		logs := []string{}
+		jsContext := sandbox.createFunctionContext(functionContext, &logs)
 		vm.Set("context", jsContext)
 
 		// Execute JavaScript code to call transaction.estimateFee

@@ -5,529 +5,706 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/nspcc-dev/neo-go/pkg/util"
-	"github.com/will/neo_service_layer/internal/services/gasbank/internal"
+
+	// Assuming neo client package exists
+	"github.com/nspcc-dev/neo-go/pkg/wallet" // Use neo-go wallet
+	log "github.com/sirupsen/logrus"
+	"github.com/will/neo_service_layer/internal/core/neo" // Use the actual path
 	"github.com/will/neo_service_layer/internal/services/gasbank/models"
 	"github.com/will/neo_service_layer/internal/services/gasbank/store"
 )
 
-// Service implements the GasBank service
-type Service struct {
-	config            *Config
-	allocationManager *internal.AllocationManager
-	poolManager       *internal.PoolManager
-	store             store.GasStore
-	metrics           internal.GasMetricsCollector
-	alerts            internal.GasAlertManager
-	billingManager    internal.BillingManager
+// Compile-time check to ensure Service implements the interface
+var _ Service = (*ServiceImpl)(nil)
+
+// ServiceImpl implements the GasBank service interface.
+type ServiceImpl struct {
+	config    *models.Config
+	store     store.Store
+	neoClient *neo.Client    // Neo client for interacting with the blockchain
+	wallet    *wallet.Wallet // Service wallet for signing withdrawals, claims
+	// Add other internal components if needed (e.g., for monitoring deposits)
 }
 
-// Config defines the configuration for the GasBank service
-type Config struct {
-	// Initial gas amount in the pool
-	InitialGas *big.Int
-
-	// Amount to refill when threshold is reached
-	RefillAmount *big.Int
-
-	// Threshold that triggers refills
-	RefillThreshold *big.Int
-
-	// Maximum allocation per user
-	MaxAllocationPerUser *big.Int
-
-	// Minimum allocation amount
-	MinAllocationAmount *big.Int
-
-	// Maximum time allocation can be held
-	MaxAllocationTime time.Duration
-
-	// Minimum wait between refills
-	CooldownPeriod time.Duration
-
-	// Store type (memory or persistent)
-	StoreType string
-
-	// Store options for persistent storage
-	StorePath string
-
-	// Transaction manager for interacting with blockchain
-	TxManager internal.TransactionManager
-
-	// Alert configuration
-	AlertConfig *internal.AlertConfig
-
-	// Expiration check interval
-	ExpirationCheckInterval time.Duration
-
-	// Monitor interval for pool status
-	MonitorInterval time.Duration
-}
-
-// DefaultConfig returns a default configuration
-func DefaultConfig() *Config {
-	return &Config{
-		InitialGas:              big.NewInt(1000000000), // 10 GAS
-		RefillAmount:            big.NewInt(500000000),  // 5 GAS
-		RefillThreshold:         big.NewInt(200000000),  // 2 GAS
-		MaxAllocationPerUser:    big.NewInt(100000000),  // 1 GAS
-		MinAllocationAmount:     big.NewInt(1000000),    // 0.01 GAS
-		MaxAllocationTime:       24 * time.Hour,
-		CooldownPeriod:          5 * time.Minute,
-		StoreType:               "memory",
-		AlertConfig:             internal.DefaultAlertConfig(),
-		ExpirationCheckInterval: 15 * time.Minute,
-		MonitorInterval:         5 * time.Minute,
-	}
-}
-
-// NewService creates a new GasBank service
-func NewService(ctx context.Context, config *Config) (*Service, error) {
+// NewServiceImpl creates a new GasBank service implementation.
+func NewServiceImpl(config *models.Config) (*ServiceImpl, error) {
 	if config == nil {
-		config = DefaultConfig()
+		return nil, errors.New("gasbank config cannot be nil")
 	}
 
-	// Create gas usage policy
-	policy := &models.GasUsagePolicy{
-		MaxAllocationPerUser: config.MaxAllocationPerUser,
-		MinAllocationAmount:  config.MinAllocationAmount,
-		MaxAllocationTime:    config.MaxAllocationTime,
-		RefillThreshold:      config.RefillThreshold,
-		RefillAmount:         config.RefillAmount,
-		CooldownPeriod:       config.CooldownPeriod,
+	// Validate config (existing logic + add checks for node url)
+	if config.EnableUserBalances {
+		if config.MinDepositAmount == nil || config.MinDepositAmount.Sign() <= 0 {
+			log.Warn("MinDepositAmount not configured or invalid, using default (0.1 GAS)")
+			config.MinDepositAmount = big.NewInt(10_000_000) // 0.1 GAS
+		}
+		if config.WithdrawalFee == nil || config.WithdrawalFee.Sign() < 0 {
+			log.Warn("WithdrawalFee not configured or invalid, using default (0 GAS)")
+			config.WithdrawalFee = big.NewInt(0)
+		}
+	}
+	if config.NeoNodeURL == "" {
+		return nil, errors.New("neoNodeUrl is required in gasbank config")
+	}
+	if config.WalletPath == "" || config.WalletPass == "" {
+		log.Warn("Service wallet path or password not configured. GAS claiming and withdrawals might be disabled.")
+		// Don't return error? Or require it? Let's require it for now if features are enabled.
+		// if config.EnableUserBalances { // Only required if withdrawals/claims are active
+		//    return nil, errors.New("service wallet path and password are required for withdrawals/claims")
+		//}
 	}
 
-	// Create store
-	var gasStore store.GasStore
+	// Initialize store (existing logic)
+	var s store.Store
 	var err error
-
-	switch config.StoreType {
-	case "memory":
-		gasStore = store.NewMemoryStore()
-	case "persistent":
-		// TODO: Replace with BadgerStore when dependencies are available
-		// gasStore, err = store.NewBadgerStore(store.BadgerStoreOptions{
-		//     DbPath: config.StorePath,
-		// })
-		gasStore = store.NewMemoryStore()
+	switch strings.ToLower(config.StoreType) {
+	case "memory", "":
+		s = store.NewMemoryStore()
+		log.Info("GasBank Service initialized with in-memory store")
+	// case "badger":
+	// ... badger init ...
 	default:
-		return nil, fmt.Errorf("unsupported store type: %s", config.StoreType)
+		err = fmt.Errorf("unsupported gasbank store type: %s", config.StoreType)
 	}
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to create store: %w", err)
+		return nil, fmt.Errorf("failed to initialize gasbank store: %w", err)
 	}
 
-	// Create metrics collector
-	metricsCollector := internal.NewBasicMetricsCollector()
-
-	// Create alerts manager with custom config if provided
-	alertsManager := internal.NewBasicAlertManagerWithConfig(config.AlertConfig)
-
-	// Create allocation manager
-	allocationManager := internal.NewAllocationManager(
-		gasStore,
-		policy,
-		metricsCollector,
-		alertsManager,
-	)
-
-	// Create pool manager
-	poolManager := internal.NewPoolManager(
-		gasStore,
-		config.TxManager,
-		policy,
-		metricsCollector,
-		alertsManager,
-	)
-
-	// Initialize pool if needed
-	pool, err := gasStore.GetPool(ctx)
+	// Initialize Neo client
+	// TODO: Add options like timeouts, retries?
+	// Passing empty config pointer, assuming URL/config handled internally by NewClient
+	// or needs separate configuration step. This may require adjustment.
+	clientConfig := &neo.Config{}
+	neoClient, err := neo.NewClient(clientConfig) // Pass pointer to config
 	if err != nil {
-		return nil, fmt.Errorf("failed to get gas pool: %w", err)
+		return nil, fmt.Errorf("failed to initialize neo client: %w", err)
 	}
+	log.Infof("GasBank Service connected to Neo node: %s", config.NeoNodeURL)
 
-	if pool == nil && config.InitialGas.Sign() > 0 {
-		pool = models.NewGasPool(config.InitialGas)
-		err = gasStore.SavePool(ctx, pool)
+	// Open service wallet if configured
+	var serviceWallet *wallet.Wallet
+	if config.WalletPath != "" && config.WalletPass != "" {
+		// Use NewWalletFromFile
+		serviceWallet, err = wallet.NewWalletFromFile(config.WalletPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize gas pool: %w", err)
+			log.Errorf("Failed to load service wallet file %s: %v", config.WalletPath, err)
+			return nil, fmt.Errorf("failed to load service wallet file: %w", err)
 		}
-	}
-
-	// Create billing manager
-	billingManager := internal.NewBasicBillingManager()
-
-	service := &Service{
-		config:            config,
-		allocationManager: allocationManager,
-		poolManager:       poolManager,
-		store:             gasStore,
-		metrics:           metricsCollector,
-		alerts:            alertsManager,
-		billingManager:    billingManager,
-	}
-
-	// Start background monitoring if context is not short-lived
-	if _, ok := ctx.Deadline(); !ok {
-		go service.startMonitoring(context.Background())
-	}
-
-	return service, nil
-}
-
-// startMonitoring starts background monitoring tasks
-func (s *Service) startMonitoring(ctx context.Context) {
-	// Monitor gas pool utilization
-	go s.monitorPoolUtilization(ctx)
-
-	// Check for expired allocations
-	go s.monitorExpiredAllocations(ctx)
-}
-
-// monitorPoolUtilization periodically checks the gas pool utilization
-func (s *Service) monitorPoolUtilization(ctx context.Context) {
-	ticker := time.NewTicker(s.config.MonitorInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			pool, err := s.store.GetPool(ctx)
+		// Decrypt accounts individually, providing the wallet's Scrypt params
+		decryptionSuccessful := false
+		if len(serviceWallet.Accounts) == 0 {
+			return nil, fmt.Errorf("service wallet %s contains no accounts", config.WalletPath)
+		}
+		// Use the wallet's Scrypt params for decryption attempts
+		walletScryptParams := serviceWallet.Scrypt // Assuming Scrypt field exists on Wallet
+		for _, acc := range serviceWallet.Accounts {
+			// Pass password and wallet's Scrypt params
+			err = acc.Decrypt(config.WalletPass, walletScryptParams)
 			if err != nil {
-				s.alerts.AlertSystemError(ctx, "pool_monitor", fmt.Errorf("failed to get pool: %w", err))
-				continue
+				log.Warnf("Failed to decrypt account %s in wallet %s: %v", acc.Address, config.WalletPath, err)
+				// Continue trying other accounts, maybe only some are needed?
+			} else {
+				decryptionSuccessful = true
+				log.Debugf("Successfully decrypted account: %s", acc.Address)
+				// Optional: Break if only one decrypted account is needed?
 			}
+		}
 
-			if pool != nil {
-				// Check if refill is needed
-				if pool.Amount.Cmp(s.config.RefillThreshold) < 0 {
-					if err := s.RefillPool(ctx); err != nil {
-						s.alerts.AlertFailedRefill(ctx, s.config.RefillAmount, err.Error())
+		// Check if at least one account was decrypted successfully
+		if !decryptionSuccessful {
+			log.Errorf("Failed to decrypt *any* account in service wallet %s with the provided password.", config.WalletPath)
+			return nil, fmt.Errorf("failed to decrypt any account in service wallet")
+		}
+
+		log.Infof("Service wallet opened and accounts decrypted (at least partially): %s (Accounts: %d)", config.WalletPath, len(serviceWallet.Accounts))
+		// TODO: Select a specific account for signing fees if multiple exist?
+	}
+
+	svc := &ServiceImpl{
+		config:    config,
+		store:     s,
+		neoClient: neoClient,
+		wallet:    serviceWallet,
+	}
+
+	return svc, nil
+}
+
+// Start starts background processes (e.g., deposit monitoring).
+func (s *ServiceImpl) Start(ctx context.Context) error {
+	log.Info("Starting GasBank Service...")
+	// TODO: Implement background tasks if needed (e.g., monitoring deposits)
+	log.Info("GasBank Service started.")
+	return nil
+}
+
+// Stop stops background processes and closes resources.
+func (s *ServiceImpl) Stop(ctx context.Context) error {
+	log.Info("Stopping GasBank Service...")
+	if err := s.store.Close(); err != nil {
+		log.Errorf("Error closing gasbank store: %v", err)
+		// Decide if we should return error or just log
+	}
+	// TODO: Close neo client connection?
+	log.Info("GasBank Service stopped.")
+	return nil
+}
+
+// --- Persistent User Balances ---
+
+// GetUserBalance retrieves the current GAS balance for a user.
+func (s *ServiceImpl) GetUserBalance(ctx context.Context, userAddress util.Uint160) (*models.UserBalance, error) {
+	balance, err := s.store.GetUserBalance(ctx, userAddress)
+	if err != nil {
+		// Log error but return specific user-facing errors if needed
+		log.Errorf("Failed to get balance for user %s: %v", userAddress.StringLE(), err)
+		return nil, fmt.Errorf("failed to retrieve balance") // Generic error for now
+	}
+	return balance, nil
+}
+
+// RecordDeposit handles recording a detected user deposit.
+// Assumes deposit verification (tx confirmation, correct recipient) happens *before* calling this.
+func (s *ServiceImpl) RecordDeposit(ctx context.Context, userAddress util.Uint160, txHash util.Uint256, amount *big.Int) error {
+	if !s.config.EnableUserBalances {
+		return errors.New("user balances are disabled")
+	}
+	if amount == nil || amount.Sign() <= 0 {
+		return errors.New("deposit amount must be positive")
+	}
+	if amount.Cmp(s.config.MinDepositAmount) < 0 {
+		return fmt.Errorf("deposit amount %s is less than minimum %s", amount.String(), s.config.MinDepositAmount.String())
+	}
+
+	log.Infof("Recording deposit for user %s: Amount=%s, TxHash=%s", userAddress.StringLE(), amount.String(), txHash.StringLE())
+
+	err := s.store.UpdateUserBalance(ctx, userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+		balance.Balance.Add(balance.Balance, amount)
+		// TODO: Add transaction record/history?
+		return balance, nil
+	})
+
+	if err != nil {
+		log.Errorf("Failed to update balance after deposit for user %s: %v", userAddress.StringLE(), err)
+		return fmt.Errorf("failed to record deposit")
+	}
+
+	log.Infof("Deposit recorded successfully for user %s.", userAddress.StringLE())
+	// TODO: Emit event or notification?
+	return nil
+}
+
+// InitiateWithdrawal starts the process for a user to withdraw GAS.
+func (s *ServiceImpl) InitiateWithdrawal(ctx context.Context, userAddress util.Uint160, amount *big.Int) (string, error) {
+	if !s.config.EnableUserBalances {
+		return "", errors.New("user balances are disabled")
+	}
+	if amount == nil || amount.Sign() <= 0 {
+		return "", errors.New("withdrawal amount must be positive")
+	}
+	// Check if service wallet is configured
+	// if s.wallet == nil { return "", errors.New("withdrawals currently disabled (service wallet not configured)") }
+
+	totalWithdrawal := new(big.Int).Add(amount, s.config.WithdrawalFee)
+	requestID := uuid.NewString() // Generate unique ID for this withdrawal request
+
+	log.Infof("Initiating withdrawal request %s for user %s: Amount=%s (Total=%s including fee %s)",
+		requestID, userAddress.StringLE(), amount.String(), totalWithdrawal.String(), s.config.WithdrawalFee.String())
+
+	// Lock the balance first
+	err := s.store.UpdateUserBalance(ctx, userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+		if balance.Balance.Cmp(totalWithdrawal) < 0 {
+			return nil, fmt.Errorf("insufficient balance (Available: %s, Required: %s)", balance.Balance.String(), totalWithdrawal.String())
+		}
+		balance.Balance.Sub(balance.Balance, totalWithdrawal)
+		balance.LockedBalance.Add(balance.LockedBalance, totalWithdrawal)
+		return balance, nil
+	})
+
+	if err != nil {
+		log.Errorf("Failed to lock balance for withdrawal request %s: %v", requestID, err)
+		return "", fmt.Errorf("failed to initiate withdrawal: %w", err)
+	}
+
+	// If locking succeeded, create the withdrawal record
+	record := &models.WithdrawalRecord{
+		RequestID:   requestID,
+		UserID:      userAddress,
+		Amount:      new(big.Int).Set(amount),
+		TotalLocked: new(big.Int).Set(totalWithdrawal),
+		Status:      "Processing", // Mark as Processing (was Pending, now locked)
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	if err := s.store.SaveWithdrawalRecord(ctx, record); err != nil {
+		log.Errorf("CRITICAL ERROR: Failed to save withdrawal record %s after locking balance: %v. Attempting rollback.", requestID, err)
+		// Attempt to rollback balance lock
+		rollbackErr := s.store.UpdateUserBalance(context.Background(), userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+			// Check consistency before rollback
+			if balance.LockedBalance.Cmp(totalWithdrawal) < 0 {
+				log.Errorf("Rollback Inconsistency: Locked balance %s < withdrawal %s", balance.LockedBalance.String(), totalWithdrawal.String())
+				return balance, errors.New("rollback inconsistency")
+			}
+			balance.LockedBalance.Sub(balance.LockedBalance, totalWithdrawal)
+			balance.Balance.Add(balance.Balance, totalWithdrawal)
+			return balance, nil
+		})
+		if rollbackErr != nil {
+			log.Fatalf("CRITICAL ERROR: Failed to rollback balance lock for request %s after failing to save record: %v. Manual intervention needed!", requestID, rollbackErr)
+		}
+		return "", fmt.Errorf("failed to save withdrawal record: %w", err)
+	}
+
+	// Proceed to create and broadcast transaction asynchronously
+	go s.processWithdrawal(requestID, userAddress, amount)
+
+	log.Infof("Withdrawal request %s accepted for user %s.", requestID, userAddress.StringLE())
+	return requestID, nil // Return request ID for status tracking
+}
+
+// processWithdrawal handles the actual transaction creation and broadcast.
+func (s *ServiceImpl) processWithdrawal(requestID string, userAddress util.Uint160, amount *big.Int) {
+	ctx := context.Background() // Use a background context
+	log.Infof("[Withdrawal %s] Processing withdrawal for %s: Amount=%s", requestID, userAddress.StringLE(), amount.String())
+
+	var finalTxHash *util.Uint256
+	var broadcastError error
+
+	// Ensure client and wallet are available
+	if s.neoClient == nil {
+		broadcastError = errors.New("neo client not available")
+	} else if s.wallet == nil || len(s.wallet.Accounts) == 0 {
+		broadcastError = errors.New("service wallet not configured or empty")
+	}
+
+	// If pre-checks failed, mark as failed and attempt rollback
+	if broadcastError != nil {
+		log.Errorf("[Withdrawal %s] Pre-check failed: %v", requestID, broadcastError)
+		_ = s.store.UpdateWithdrawalStatus(ctx, requestID, "Failed", nil, broadcastError.Error())
+	} else {
+		// --- Build, Sign, and Send Transaction ---
+		senderAccount := s.wallet.Accounts[0] // Use the first account
+		senderAddress := senderAccount.ScriptHash()
+
+		// Get GAS token hash (assuming client provides this)
+		gasHash, err := s.neoClient.GetGASHash() // Assumes method exists
+		if err != nil {
+			broadcastError = fmt.Errorf("failed to get GAS token hash: %w", err)
+		} else {
+			// Build unsigned transaction
+			tx, err := s.neoClient.NewTransfer(senderAddress, userAddress, gasHash, amount, nil)
+			if err != nil {
+				broadcastError = fmt.Errorf("failed to build transfer transaction: %w", err)
+			} else {
+				// Calculate network fee
+				networkFee, err := s.neoClient.CalculateNetworkFee(tx)
+				if err != nil {
+					broadcastError = fmt.Errorf("failed to calculate network fee: %w", err)
+				} else {
+					tx.NetworkFee = networkFee
+					// Add sender as signer (already implicit in NewTransfer? Depends on impl.)
+					// tx.Signers = []transaction.Signer{{Account: senderAddress}}
+
+					// Sign the transaction
+					err = senderAccount.SignTx(tx)
+					if err != nil {
+						broadcastError = fmt.Errorf("failed to sign withdrawal transaction: %w", err)
+					} else {
+						// Broadcast the transaction
+						txid, err := s.neoClient.SendRawTransaction(tx)
+						if err != nil {
+							broadcastError = fmt.Errorf("failed to broadcast withdrawal transaction: %w", err)
+						} else {
+							finalTxHash = &txid // Success!
+						}
 					}
 				}
+			}
+		}
+		// --- End Transaction Logic ---
 
-				// Alert on low gas
-				s.alerts.AlertLowGas(ctx, pool.Amount)
+		// Update store status based on outcome
+		if broadcastError != nil {
+			log.Errorf("[Withdrawal %s] Transaction processing failed: %v", requestID, broadcastError)
+			_ = s.store.UpdateWithdrawalStatus(ctx, requestID, "Failed", nil, broadcastError.Error())
+		} else {
+			log.Infof("[Withdrawal %s] Transaction broadcast successful: %s", requestID, finalTxHash.StringLE())
+			_ = s.store.UpdateWithdrawalStatus(ctx, requestID, "Submitted", finalTxHash, "")
+		}
+	}
+
+	// Update the user balance based on the outcome
+	err := s.store.UpdateUserBalance(ctx, userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+		record, getErr := s.store.GetWithdrawalRecord(ctx, requestID)
+		if getErr != nil {
+			log.Errorf("[Withdrawal %s] CRITICAL: Failed to retrieve withdrawal record during balance update: %v", requestID, getErr)
+			return nil, fmt.Errorf("failed to retrieve withdrawal record: %w", getErr)
+		}
+
+		totalLocked := record.TotalLocked
+		if balance.LockedBalance.Cmp(totalLocked) < 0 {
+			log.Errorf("[Withdrawal %s] Inconsistency: Locked balance %s < recorded locked %s", requestID, balance.LockedBalance.String(), totalLocked.String())
+			balance.LockedBalance = big.NewInt(0)
+		} else {
+			balance.LockedBalance.Sub(balance.LockedBalance, totalLocked)
+		}
+
+		if broadcastError != nil {
+			balance.Balance.Add(balance.Balance, totalLocked) // Refund if failed
+			log.Infof("[Withdrawal %s] Restored balance for user %s due to failed broadcast.", requestID, userAddress.StringLE())
+		} // If successful, balance remains reduced, locked amount is cleared.
+		return balance, nil
+	})
+
+	if err != nil {
+		log.Fatalf("[Withdrawal %s] CRITICAL ERROR: Failed to update balance for user %s after withdrawal attempt: %v. Manual intervention required!", requestID, userAddress.StringLE(), err)
+	}
+
+	log.Infof("[Withdrawal %s] Processing complete.", requestID)
+}
+
+// GetWithdrawalStatus checks the status of a withdrawal request.
+func (s *ServiceImpl) GetWithdrawalStatus(ctx context.Context, userAddress util.Uint160, requestID string) (string, error) {
+	record, err := s.store.GetWithdrawalRecord(ctx, requestID)
+	if err != nil {
+		// Check if ErrNotFound specifically
+		// if errors.Is(err, store.ErrNotFound) { ... }
+		log.Warnf("Failed to get withdrawal record for request %s: %v", requestID, err)
+		return "", fmt.Errorf("failed to retrieve withdrawal status")
+	}
+
+	// Verify ownership (optional, depends if requestID is guessable)
+	if !record.UserID.Equals(userAddress) {
+		return "", fmt.Errorf("withdrawal record not found or permission denied")
+	}
+
+	// TODO: Optionally check blockchain confirmation if status is "Submitted"
+	// if record.Status == "Submitted" && record.TxHash != nil {
+	//    ... check app log ... update status to "Confirmed" or "FailedOnChain"
+	// }
+
+	return record.Status, nil
+}
+
+// --- Fee Payment Sponsorship ---
+
+// RequestTransactionFeeSponsorship checks if GasBank can sponsor the fee for a transaction.
+func (s *ServiceImpl) RequestTransactionFeeSponsorship(ctx context.Context, userAddress util.Uint160, txDetails TransactionDetails) (*big.Int, error) {
+	if !s.config.EnableUserBalances {
+		return nil, errors.New("fee sponsorship disabled (user balances not enabled)")
+	}
+	policy, err := s.store.GetFeePolicy(ctx, userAddress)
+	if err != nil {
+		log.Debugf("Fee sponsorship denied for user %s: No policy found or error retrieving policy: %v", userAddress.StringLE(), err)
+		return big.NewInt(0), fmt.Errorf("fee sponsorship denied: policy not found or inaccessible")
+	}
+	if policy == nil || !policy.IsEnabled {
+		log.Debugf("Fee sponsorship denied for user %s: Policy disabled", userAddress.StringLE())
+		return big.NewInt(0), fmt.Errorf("fee sponsorship denied: policy disabled")
+	}
+	isAllowed := false
+	if policy.PayForOthers {
+		isAllowed = true
+	} else if len(policy.AllowedContracts) > 0 {
+		allowedMap := make(map[string]struct{})
+		for _, addr := range policy.AllowedContracts {
+			allowedMap[addr.StringLE()] = struct{}{}
+		}
+		for _, calledAddr := range txDetails.CalledContracts {
+			if _, ok := allowedMap[calledAddr.StringLE()]; ok {
+				isAllowed = true
+				break
 			}
 		}
 	}
-}
+	if !isAllowed {
+		log.Debugf("Fee sponsorship denied for user %s: Transaction does not match policy rules (PayForOthers: %t, CalledContracts: %v)",
+			userAddress.StringLE(), policy.PayForOthers, txDetails.CalledContracts)
+		return big.NewInt(0), fmt.Errorf("fee sponsorship denied: transaction does not match policy rules")
+	}
+	potentialFee := new(big.Int).Add(txDetails.NetworkFee, txDetails.SystemFee)
+	if potentialFee.Sign() <= 0 {
+		log.Debugf("Fee sponsorship not needed for user %s: Calculated fee is zero or negative", userAddress.StringLE())
+		return big.NewInt(0), nil
+	}
+	feeToCover := new(big.Int).Set(potentialFee)
+	if policy.MaxFeePerTx != nil && policy.MaxFeePerTx.Sign() > 0 && feeToCover.Cmp(policy.MaxFeePerTx) > 0 {
+		feeToCover.Set(policy.MaxFeePerTx)
+		log.Debugf("Fee sponsorship for user %s capped at policy max: %s (Potential: %s)",
+			userAddress.StringLE(), feeToCover.String(), potentialFee.String())
+	} else {
+		log.Debugf("Fee sponsorship for user %s requested for amount: %s", userAddress.StringLE(), feeToCover.String())
+	}
 
-// monitorExpiredAllocations checks for and handles expired allocations
-func (s *Service) monitorExpiredAllocations(ctx context.Context) {
-	ticker := time.NewTicker(s.config.ExpirationCheckInterval)
-	defer ticker.Stop()
+	// Generate a unique ID for this sponsorship attempt
+	// Note: We need the *actual* tx hash later for confirmation/cancellation.
+	// This assumes the caller provides a stable proposed tx hash or we generate one.
+	// Let's assume txDetails includes a proposed TxHash or unique identifier for the request.
+	sponsorshipID := uuid.NewString()
+	// txHash := txDetails.ProposedTxHash // Assuming this exists
+	txHash := util.Uint256{} // Placeholder - Need a way to identify this tx later
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			allocations, err := s.store.GetAllAllocations(ctx)
-			if err != nil {
-				s.alerts.AlertSystemError(ctx, "expiration_monitor", fmt.Errorf("failed to get allocations: %w", err))
-				continue
-			}
-
-			for _, allocation := range allocations {
-				if allocation.IsExpired() && allocation.Status == "active" {
-					// Alert about expired allocation
-					s.alerts.AlertAllocationExpired(ctx, allocation)
-
-					// Auto-release expired allocations
-					if err := s.ReleaseGas(ctx, allocation.UserAddress); err != nil {
-						s.alerts.AlertSystemError(ctx, "expiration_release",
-							fmt.Errorf("failed to release expired allocation for %s: %w",
-								allocation.UserAddress.StringLE(), err))
-					}
-				}
-			}
+	// Lock the balance
+	err = s.store.UpdateUserBalance(ctx, userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+		if balance.Balance.Cmp(feeToCover) < 0 {
+			return nil, fmt.Errorf("insufficient balance (Available: %s, Required Fee: %s)", balance.Balance.String(), feeToCover.String())
 		}
-	}
-}
+		balance.Balance.Sub(balance.Balance, feeToCover)
+		balance.LockedBalance.Add(balance.LockedBalance, feeToCover)
+		return balance, nil
+	})
 
-// AllocateGas allocates gas for a user
-func (s *Service) AllocateGas(ctx context.Context, userAddress util.Uint160, amount *big.Int) (*models.Allocation, error) {
-	// Validate request
-	if amount == nil || amount.Sign() <= 0 {
-		return nil, errors.New("invalid amount")
-	}
-
-	// Check available gas in pool
-	available, err := s.poolManager.GetAvailableGas(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get available gas: %w", err)
+		log.Warnf("Fee sponsorship denied for user %s: Failed to lock balance: %v", userAddress.StringLE(), err)
+		return big.NewInt(0), fmt.Errorf("fee sponsorship denied: %w", err)
 	}
 
-	if available.Cmp(amount) < 0 {
-		return nil, fmt.Errorf("insufficient gas in pool: available=%s, requested=%s",
-			available.String(), amount.String())
+	// Save pending sponsorship record
+	pending := &models.PendingSponsorship{
+		SponsorshipID: sponsorshipID,
+		TxHash:        txHash, // Use the placeholder/proposed hash
+		UserID:        userAddress,
+		LockedAmount:  new(big.Int).Set(feeToCover),
+		Status:        "Pending",
+		CreatedAt:     time.Now(),
+		// ExpiresAt: time.Now().Add(5 * time.Minute), // Example expiry
 	}
-
-	// Allocate gas for user
-	allocation, err := s.allocationManager.AllocateGas(ctx, userAddress, amount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to allocate gas: %w", err)
-	}
-
-	// Consume gas from pool
-	err = s.poolManager.ConsumeGas(ctx, amount)
-	if err != nil {
-		// Attempt to rollback allocation
-		_ = s.allocationManager.ReleaseGas(ctx, userAddress)
-		return nil, fmt.Errorf("failed to consume gas from pool: %w", err)
-	}
-
-	return allocation, nil
-}
-
-// UseGas records the use of gas by a user
-func (s *Service) UseGas(ctx context.Context, userAddress util.Uint160, amount *big.Int) error {
-	return s.allocationManager.UseGas(ctx, userAddress, amount)
-}
-
-// ReleaseGas releases gas allocation for a user
-func (s *Service) ReleaseGas(ctx context.Context, userAddress util.Uint160) error {
-	// Get current allocation
-	allocation, err := s.allocationManager.GetAllocation(ctx, userAddress)
-	if err != nil {
-		return fmt.Errorf("failed to get allocation: %w", err)
-	}
-
-	if allocation == nil {
-		return nil // Nothing to release
-	}
-
-	// Calculate unused gas
-	unusedGas := allocation.RemainingGas()
-
-	// Release allocation
-	err = s.allocationManager.ReleaseGas(ctx, userAddress)
-	if err != nil {
-		return fmt.Errorf("failed to release allocation: %w", err)
-	}
-
-	// Return unused gas to pool
-	if unusedGas.Sign() > 0 {
-		err = s.poolManager.AddGas(ctx, unusedGas)
-		if err != nil {
-			return fmt.Errorf("failed to return gas to pool: %w", err)
+	if err := s.store.SavePendingSponsorship(ctx, pending); err != nil {
+		log.Errorf("CRITICAL ERROR: Failed to save pending sponsorship record %s after locking balance: %v. Attempting rollback.", sponsorshipID, err)
+		// Attempt rollback
+		rollbackErr := s.store.UpdateUserBalance(context.Background(), userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+			// Consistency check less critical here, just try to unlock
+			balance.LockedBalance.Sub(balance.LockedBalance, feeToCover)
+			balance.Balance.Add(balance.Balance, feeToCover)
+			return balance, nil
+		})
+		if rollbackErr != nil {
+			log.Fatalf("CRITICAL ERROR: Failed to rollback balance lock for sponsorship %s after failing to save record: %v. Manual intervention needed!", sponsorshipID, rollbackErr)
 		}
+		return big.NewInt(0), fmt.Errorf("failed to record sponsorship lock: %w", err)
 	}
 
-	return nil
+	log.Infof("Fee sponsorship approved and locked for user %s: Amount=%s, SponsorshipID=%s",
+		userAddress.StringLE(), feeToCover.String(), sponsorshipID)
+	return feeToCover, nil
 }
 
-// GetAllocation gets gas allocation for a user
-func (s *Service) GetAllocation(ctx context.Context, userAddress util.Uint160) (*models.Allocation, error) {
-	return s.allocationManager.GetAllocation(ctx, userAddress)
-}
+// ConfirmFeePayment confirms a sponsored transaction was successful and updates balances.
+func (s *ServiceImpl) ConfirmFeePayment(ctx context.Context, userAddress util.Uint160, txHash util.Uint256, actualFee *big.Int) error {
+	if !s.config.EnableUserBalances {
+		return errors.New("fee confirmation disabled (user balances not enabled)")
+	}
+	if actualFee == nil || actualFee.Sign() < 0 {
+		actualFee = big.NewInt(0)
+		log.Debugf("ConfirmFeePayment called with zero or negative actualFee for Tx %s, proceeding.", txHash.StringLE())
+	}
 
-// GetAvailableGas gets available gas in the pool
-func (s *Service) GetAvailableGas(ctx context.Context) (*big.Int, error) {
-	return s.poolManager.GetAvailableGas(ctx)
-}
+	log.Infof("Confirming fee payment for user %s, Tx %s: ActualFee=%s", userAddress.StringLE(), txHash.StringLE(), actualFee.String())
 
-// RefillPool refills the gas pool
-func (s *Service) RefillPool(ctx context.Context) error {
-	return s.poolManager.RefillPool(ctx)
-}
-
-// GetMetrics gets usage metrics
-func (s *Service) GetMetrics(ctx context.Context) (*models.GasUsageMetrics, error) {
-	return s.metrics.GetMetrics(ctx), nil
-}
-
-// AllocateGasForTransaction allocates gas for a specific transaction
-func (s *Service) AllocateGasForTransaction(ctx context.Context, userAddress util.Uint160, amount *big.Int, txHash string) (*models.Allocation, error) {
-	// First allocate gas normally
-	allocation, err := s.AllocateGas(ctx, userAddress, amount)
+	// Get the pending sponsorship record using the TxHash
+	sponsorship, err := s.store.GetPendingSponsorshipByTx(ctx, userAddress, txHash)
 	if err != nil {
-		return nil, err
+		log.Errorf("Cannot confirm fee payment for user %s, Tx %s: Failed to retrieve pending sponsorship record: %v", userAddress.StringLE(), txHash.StringLE(), err)
+		// Should we return error? Or assume already processed/cancelled?
+		// If ErrNotFound, maybe it was cancelled. If other error, something is wrong.
+		return fmt.Errorf("cannot confirm fee payment: %w", err)
+	}
+	if sponsorship == nil {
+		log.Warnf("ConfirmFeePayment called for user %s, Tx %s, but no pending record found. Assuming already processed or cancelled.", userAddress.StringLE(), txHash.StringLE())
+		return nil // Nothing to confirm
 	}
 
-	// Add transaction to allocation
-	allocation.Transactions = append(allocation.Transactions, txHash)
+	lockedAmount := sponsorship.LockedAmount
 
-	// Save updated allocation
-	err = s.store.SaveAllocation(ctx, allocation)
-	if err != nil {
-		// If saving fails, try to release the allocation
-		_ = s.ReleaseGas(ctx, userAddress)
-		return nil, fmt.Errorf("failed to save allocation with transaction: %w", err)
-	}
-
-	// Alert for large allocations
-	s.alerts.AlertLargeAllocation(ctx, allocation)
-
-	return allocation, nil
-}
-
-// ExtendAllocation extends the expiration time of an existing allocation
-func (s *Service) ExtendAllocation(ctx context.Context, userAddress util.Uint160, extension time.Duration) error {
-	allocation, err := s.allocationManager.GetAllocation(ctx, userAddress)
-	if err != nil {
-		return fmt.Errorf("failed to get allocation: %w", err)
-	}
-
-	if allocation == nil {
-		return errors.New("no active allocation found")
-	}
-
-	// Calculate new expiration time
-	newExpiry := allocation.ExpiresAt.Add(extension)
-	maxExpiry := time.Now().Add(s.config.MaxAllocationTime)
-
-	// Don't allow extending beyond the maximum allocation time
-	if newExpiry.After(maxExpiry) {
-		newExpiry = maxExpiry
-	}
-
-	// Update expiration time
-	allocation.ExpiresAt = newExpiry
-
-	// Save updated allocation
-	err = s.store.SaveAllocation(ctx, allocation)
-	if err != nil {
-		return fmt.Errorf("failed to save extended allocation: %w", err)
-	}
-
-	return nil
-}
-
-// AddGasToPool adds gas to the pool (for testing or manual operations)
-func (s *Service) AddGasToPool(ctx context.Context, amount *big.Int) error {
-	if amount == nil || amount.Sign() <= 0 {
-		return errors.New("invalid amount")
-	}
-
-	return s.poolManager.AddGas(ctx, amount)
-}
-
-// GetAllAllocations returns all active gas allocations
-func (s *Service) GetAllAllocations(ctx context.Context) ([]*models.Allocation, error) {
-	return s.store.GetAllAllocations(ctx)
-}
-
-// Close closes the service and its resources
-func (s *Service) Close() error {
-	if closer, ok := s.store.(store.Closer); ok {
-		return closer.Close()
-	}
-	return nil
-}
-
-// ReleaseAllocation releases a user's gas allocation
-func (s *Service) ReleaseAllocation(ctx context.Context, userAddress util.Uint160) error {
-	// Get current allocation
-	allocation, err := s.allocationManager.GetAllocation(ctx, userAddress)
-	if err != nil {
-		return fmt.Errorf("failed to get allocation: %w", err)
-	}
-
-	if allocation == nil {
-		return fmt.Errorf("no active allocation found for user")
-	}
-
-	// Return gas to pool
-	remaining := allocation.RemainingGas()
-	if remaining.Sign() > 0 {
-		err = s.poolManager.ReturnGas(ctx, remaining)
-		if err != nil {
-			return fmt.Errorf("failed to return gas to pool: %w", err)
+	err = s.store.UpdateUserBalance(ctx, userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+		if balance.LockedBalance.Cmp(lockedAmount) < 0 {
+			log.Errorf("ConfirmFeePayment Inconsistency for user %s, Tx %s: Current LockedBalance %s < originally locked %s",
+				userAddress.StringLE(), txHash.StringLE(), balance.LockedBalance.String(), lockedAmount.String())
+			balance.LockedBalance = big.NewInt(0)
+			return balance, fmt.Errorf("locked balance inconsistency during confirmation")
 		}
-	}
+		// Unlock the amount that was reserved
+		balance.LockedBalance.Sub(balance.LockedBalance, lockedAmount)
 
-	// Release the allocation
-	err = s.allocationManager.ReleaseGas(ctx, userAddress)
+		// If actualFee < lockedAmount, refund the difference to the main balance.
+		if actualFee.Cmp(lockedAmount) < 0 {
+			refund := new(big.Int).Sub(lockedAmount, actualFee)
+			balance.Balance.Add(balance.Balance, refund)
+			log.Infof("Refunded %s GAS to user %s for Tx %s (Locked: %s, Actual: %s)",
+				refund.String(), userAddress.StringLE(), txHash.StringLE(), lockedAmount.String(), actualFee.String())
+		} else if actualFee.Cmp(lockedAmount) > 0 {
+			log.Warnf("Actual fee %s exceeded locked amount %s for user %s, Tx %s. Only locked amount was deducted.",
+				actualFee.String(), lockedAmount.String(), userAddress.StringLE(), txHash.StringLE())
+		}
+		return balance, nil
+	})
+
 	if err != nil {
-		return fmt.Errorf("failed to release allocation: %w", err)
+		log.Errorf("CRITICAL ERROR: Failed to confirm fee payment (update balance) for user %s, Tx %s: %v. Locked funds may remain!",
+			userAddress.StringLE(), txHash.StringLE(), err)
+		return fmt.Errorf("failed to confirm fee payment balance update: %w", err)
 	}
 
+	// Delete the pending sponsorship record
+	delErr := s.store.DeletePendingSponsorship(ctx, sponsorship.SponsorshipID)
+	if delErr != nil {
+		log.Errorf("Failed to delete pending sponsorship record %s (Tx %s) after confirming payment: %v",
+			sponsorship.SponsorshipID, txHash.StringLE(), delErr)
+		// Continue, as balance update was successful, but log the cleanup failure.
+	}
+
+	log.Infof("Fee payment confirmed successfully for user %s, Tx %s.", userAddress.StringLE(), txHash.StringLE())
 	return nil
 }
 
-// RequestAllocation requests a new gas allocation for a user
-func (s *Service) RequestAllocation(ctx context.Context, userAddress util.Uint160, amount *big.Int) (*models.Allocation, error) {
-	// Check if user already has an allocation
-	existing, err := s.allocationManager.GetAllocation(ctx, userAddress)
+// CancelFeeSponsorship releases locked funds if a sponsored transaction fails.
+func (s *ServiceImpl) CancelFeeSponsorship(ctx context.Context, userAddress util.Uint160, txHash util.Uint256) error {
+	if !s.config.EnableUserBalances {
+		return errors.New("fee cancellation disabled (user balances not enabled)")
+	}
+
+	log.Infof("Cancelling fee sponsorship for user %s, Tx %s", userAddress.StringLE(), txHash.StringLE())
+
+	// Get the pending sponsorship record using the TxHash
+	sponsorship, err := s.store.GetPendingSponsorshipByTx(ctx, userAddress, txHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check existing allocation: %w", err)
+		log.Warnf("Cannot cancel fee sponsorship for user %s, Tx %s: Failed to retrieve pending record: %v", userAddress.StringLE(), txHash.StringLE(), err)
+		// If ErrNotFound, maybe already processed/cancelled.
+		// if errors.Is(err, store.ErrNotFound) { return nil }
+		return fmt.Errorf("cannot cancel sponsorship: %w", err)
 	}
-	if existing != nil {
-		return nil, fmt.Errorf("user already has an active allocation")
+	if sponsorship == nil {
+		log.Infof("No active lock found for Tx %s (user %s) to cancel.", txHash.StringLE(), userAddress.StringLE())
+		return nil // Nothing to cancel
 	}
 
-	// Check available gas in pool
-	available, err := s.poolManager.GetAvailableGas(ctx)
+	lockedAmount := sponsorship.LockedAmount
+
+	err = s.store.UpdateUserBalance(ctx, userAddress, func(balance *models.UserBalance) (*models.UserBalance, error) {
+		if balance.LockedBalance.Cmp(lockedAmount) < 0 {
+			log.Errorf("CancelFeeSponsorship Inconsistency for user %s, Tx %s: Locked balance %s < originally locked %s",
+				userAddress.StringLE(), txHash.StringLE(), balance.LockedBalance.String(), lockedAmount.String())
+			balance.LockedBalance = big.NewInt(0)
+			return balance, fmt.Errorf("locked balance inconsistency during cancellation")
+		}
+		// Unlock the amount and add it back to available balance
+		balance.LockedBalance.Sub(balance.LockedBalance, lockedAmount)
+		balance.Balance.Add(balance.Balance, lockedAmount)
+		return balance, nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get available gas: %w", err)
+		log.Errorf("CRITICAL ERROR: Failed to cancel fee sponsorship (update balance) for user %s, Tx %s: %v. Funds may remain locked!",
+			userAddress.StringLE(), txHash.StringLE(), err)
+		return fmt.Errorf("failed to cancel fee sponsorship balance update: %w", err)
 	}
 
-	if available.Cmp(amount) < 0 {
-		return nil, fmt.Errorf("insufficient gas in pool: available=%s, requested=%s",
-			available.String(), amount.String())
+	// Delete the pending sponsorship record
+	delErr := s.store.DeletePendingSponsorship(ctx, sponsorship.SponsorshipID)
+	if delErr != nil {
+		log.Errorf("Failed to delete pending sponsorship record %s (Tx %s) after cancelling: %v",
+			sponsorship.SponsorshipID, txHash.StringLE(), delErr)
+		// Continue, as balance update was successful.
 	}
 
-	// Create allocation
-	allocation, err := s.allocationManager.AllocateGas(ctx, userAddress, amount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create allocation: %w", err)
-	}
-
-	// Consume gas from pool
-	err = s.poolManager.ConsumeGas(ctx, amount)
-	if err != nil {
-		// Attempt to rollback allocation
-		_ = s.allocationManager.ReleaseGas(ctx, userAddress)
-		return nil, fmt.Errorf("failed to consume gas from pool: %w", err)
-	}
-
-	return allocation, nil
-}
-
-// Start starts the gas bank service
-func (s *Service) Start(ctx context.Context) error {
-	// Initialize components
-	if err := s.poolManager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start pool manager: %w", err)
-	}
-
-	if err := s.allocationManager.Start(ctx); err != nil {
-		// Try to stop pool manager if allocation manager fails
-		_ = s.poolManager.Stop(ctx)
-		return fmt.Errorf("failed to start allocation manager: %w", err)
-	}
-
-	if err := s.billingManager.Start(ctx); err != nil {
-		// Try to stop other components if billing manager fails
-		_ = s.allocationManager.Stop(ctx)
-		_ = s.poolManager.Stop(ctx)
-		return fmt.Errorf("failed to start billing manager: %w", err)
-	}
-
+	log.Infof("Fee sponsorship cancelled successfully for user %s, Tx %s.", userAddress.StringLE(), txHash.StringLE())
 	return nil
 }
 
-// Stop stops the gas bank service
-func (s *Service) Stop(ctx context.Context) error {
-	// Stop components in reverse order
-	if err := s.billingManager.Stop(ctx); err != nil {
-		return fmt.Errorf("failed to stop billing manager: %w", err)
-	}
+// --- Placeholder internal methods for lock tracking (REMOVED - No longer needed) ---
+/*
+func (s *ServiceImpl) getLockedFeeAmount(ctx context.Context, userAddress util.Uint160, txHash util.Uint256) (*big.Int, error) {
+	log.Warnf("getLockedFeeAmount is a placeholder and not implemented!")
+	return big.NewInt(10000000), nil // BAD PLACEHOLDER - returning 0.1 GAS
+}
 
-	if err := s.allocationManager.Stop(ctx); err != nil {
-		return fmt.Errorf("failed to stop allocation manager: %w", err)
-	}
-
-	if err := s.poolManager.Stop(ctx); err != nil {
-		return fmt.Errorf("failed to stop pool manager: %w", err)
-	}
-
+func (s *ServiceImpl) deleteLockedFeeRecord(ctx context.Context, userAddress util.Uint160, txHash util.Uint256) error {
+	log.Warnf("deleteLockedFeeRecord is a placeholder and not implemented!")
 	return nil
 }
+*/
+
+// SetFeePolicy allows a user to define their fee payment policy.
+func (s *ServiceImpl) SetFeePolicy(ctx context.Context, userAddress util.Uint160, policy models.FeePolicy) error {
+	if !s.config.EnableUserBalances {
+		return errors.New("user balances and fee policies are disabled")
+	}
+	policy.UserID = userAddress // Ensure policy is for the correct user
+	// TODO: Validate policy fields (e.g., MaxFeePerTx >= 0)
+	log.Infof("Setting fee policy for user %s: %+v", userAddress.StringLE(), policy)
+	err := s.store.SaveFeePolicy(ctx, &policy)
+	if err != nil {
+		log.Errorf("Failed to save fee policy for user %s: %v", userAddress.StringLE(), err)
+		return fmt.Errorf("failed to save fee policy")
+	}
+	return nil
+}
+
+// GetFeePolicy retrieves a user's current fee payment policy.
+func (s *ServiceImpl) GetFeePolicy(ctx context.Context, userAddress util.Uint160) (*models.FeePolicy, error) {
+	if !s.config.EnableUserBalances {
+		return nil, errors.New("user balances and fee policies are disabled")
+	}
+	policy, err := s.store.GetFeePolicy(ctx, userAddress)
+	if err != nil {
+		log.Errorf("Failed to get fee policy for user %s: %v", userAddress.StringLE(), err)
+		return nil, fmt.Errorf("failed to retrieve fee policy")
+	}
+	return policy, nil
+}
+
+// --- Gas Claiming for NEO-only users ---
+
+// SubmitGasClaim allows a user to submit their pre-signed claim transaction.
+func (s *ServiceImpl) SubmitGasClaim(ctx context.Context, userAddress util.Uint160, signedTxBytes []byte) (string, error) {
+	// TODO: Implement GAS claim logic using correct Neo transaction handling
+	log.Warnf("SubmitGasClaim not implemented correctly due to library mismatches.")
+	return "", errors.New("gas claiming not implemented")
+}
+
+// GetGasClaimStatus checks the status of a submitted claim.
+func (s *ServiceImpl) GetGasClaimStatus(ctx context.Context, userAddress util.Uint160, requestID string) (*models.GasClaim, error) {
+	claim, err := s.store.GetGasClaim(ctx, userAddress, requestID)
+	if err != nil {
+		log.Warnf("Failed to get gas claim status for user %s, request %s: %v", userAddress.StringLE(), requestID, err)
+		return nil, fmt.Errorf("failed to retrieve claim status")
+	}
+	// TODO: Optionally check blockchain confirmation if status is "Submitted"
+	return claim, nil
+}
+
+// --- Temporary Allocations (REMOVED) ---
+/*
+func (s *ServiceImpl) AllocateGas(ctx context.Context, userAddress util.Uint160, amount *big.Int) (*models.Allocation, error) {
+	log.Warnf("AllocateGas (temporary allocation) not fully integrated with persistent balances yet.")
+	return nil, errors.New("temporary allocation logic needs integration with user balances")
+}
+
+func (s *ServiceImpl) UseGas(ctx context.Context, userAddress util.Uint160, amountUsed *big.Int) error {
+	log.Warnf("UseGas (temporary allocation) not fully integrated with persistent balances yet.")
+	return errors.New("temporary allocation logic needs integration with user balances")
+}
+
+func (s *ServiceImpl) ReleaseGas(ctx context.Context, userAddress util.Uint160) error {
+	log.Warnf("ReleaseGas (temporary allocation) not fully integrated with persistent balances yet.")
+	return errors.New("temporary allocation logic needs integration with user balances")
+}
+*/
+
+// --- Admin/Monitoring (REMOVED) ---
+/*
+func (s *ServiceImpl) GetGasPoolState(ctx context.Context) (*models.GasPoolState, error) {
+	log.Warnf("GetGasPoolState not implemented for user balance model")
+	return nil, errors.New("gas pool state not applicable in user balance model")
+}
+
+func (s *ServiceImpl) RefillPool(ctx context.Context) error {
+	log.Warnf("RefillPool not implemented for user balance model")
+	return errors.New("gas pool refill not applicable in user balance model")
+}
+*/

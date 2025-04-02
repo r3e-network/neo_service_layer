@@ -16,6 +16,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// DEPRECATED: This entire file is deprecated in favor of the modular implementation in the sandbox/ directory.
+// Please use the new implementation for all new code and migrate existing code when possible.
+// See README.md for migration guidance.
+
 // Resource constraints for the sandbox
 const (
 	DefaultMemoryLimit   = 128 * 1024 * 1024 // 128 MB
@@ -25,18 +29,20 @@ const (
 )
 
 // SandboxConfig holds configuration for the JavaScript sandbox
+// DEPRECATED: Use sandbox.SandboxConfig from the sandbox package instead.
 type SandboxConfig struct {
-	MemoryLimit          int64
-	TimeoutMillis        int64
-	StackSize            int32
-	AllowNetwork         bool
-	AllowFileIO          bool
-	ServiceLayerURL      string
+	MemoryLimit            int64
+	TimeoutMillis          int64
+	StackSize              int32
+	AllowNetwork           bool
+	AllowFileIO            bool
+	ServiceLayerURL        string
 	EnableInteroperability bool
-	Logger               *zap.Logger
+	Logger                 *zap.Logger
 }
 
 // Sandbox represents a JavaScript execution environment
+// DEPRECATED: Use sandbox.Sandbox from the sandbox package instead.
 type Sandbox struct {
 	vm           *goja.Runtime
 	config       SandboxConfig
@@ -49,28 +55,31 @@ type Sandbox struct {
 }
 
 // FunctionInput represents input to a function execution
+// DEPRECATED: Use sandbox.FunctionInput from the sandbox package instead.
 type FunctionInput struct {
-	Code           string                 `json:"code"`
-	Args           map[string]interface{} `json:"args"`
-	Secrets        map[string]string      `json:"secrets,omitempty"`
-	Parameters     map[string]interface{} `json:"parameters,omitempty"`
+	Code            string                 `json:"code"`
+	Args            map[string]interface{} `json:"args"`
+	Secrets         map[string]string      `json:"secrets,omitempty"`
+	Parameters      map[string]interface{} `json:"parameters,omitempty"`
 	FunctionContext *FunctionContext       `json:"functionContext,omitempty"`
 }
 
 // FunctionContext represents the execution context for a function
+// DEPRECATED: Use sandbox.FunctionContext from the sandbox package instead.
 type FunctionContext struct {
-	FunctionID     string                 `json:"functionId"`
-	ExecutionID    string                 `json:"executionId"`
-	Owner          string                 `json:"owner"`
-	Caller         string                 `json:"caller,omitempty"`
-	Parameters     map[string]interface{} `json:"parameters,omitempty"`
-	Env            map[string]string      `json:"env,omitempty"`
-	TraceID        string                 `json:"traceId,omitempty"`
-	ServiceLayerURL string                `json:"serviceLayerUrl,omitempty"`
-	Services       *ServiceClients        `json:"-"`
+	FunctionID      string                 `json:"functionId"`
+	ExecutionID     string                 `json:"executionId"`
+	Owner           string                 `json:"owner"`
+	Caller          string                 `json:"caller,omitempty"`
+	Parameters      map[string]interface{} `json:"parameters,omitempty"`
+	Env             map[string]string      `json:"env,omitempty"`
+	TraceID         string                 `json:"traceId,omitempty"`
+	ServiceLayerURL string                 `json:"serviceLayerUrl,omitempty"`
+	Services        *ServiceClients        `json:"-"`
 }
 
 // ServiceClients holds references to Neo Service Layer services
+// DEPRECATED: Use sandbox.ServiceClients from the sandbox package instead.
 type ServiceClients struct {
 	Functions   interface{} // Functions service client
 	GasBank     interface{} // Gas Bank service client
@@ -81,6 +90,7 @@ type ServiceClients struct {
 }
 
 // FunctionOutput represents output from a function execution
+// DEPRECATED: Use sandbox.FunctionOutput from the sandbox package instead.
 type FunctionOutput struct {
 	Result     interface{} `json:"result"`
 	Logs       []string    `json:"logs"`
@@ -90,6 +100,8 @@ type FunctionOutput struct {
 }
 
 // NewSandbox creates a new JavaScript sandbox
+// DEPRECATED: Use the sandbox.New function from the sandbox package instead.
+// For backward compatibility, use NewLegacySandbox from sandbox_wrapper.go.
 func NewSandbox(config SandboxConfig) *Sandbox {
 	// Apply default values if not specified
 	if config.MemoryLimit <= 0 {
@@ -101,7 +113,7 @@ func NewSandbox(config SandboxConfig) *Sandbox {
 	if config.StackSize <= 0 {
 		config.StackSize = DefaultStackSize
 	}
-	
+
 	// Set up logger if not provided
 	logger := config.Logger
 	if logger == nil {
@@ -116,7 +128,7 @@ func NewSandbox(config SandboxConfig) *Sandbox {
 
 	// Create VM with options
 	vm := goja.New()
-	
+
 	return &Sandbox{
 		vm:           vm,
 		config:       config,
@@ -127,6 +139,7 @@ func NewSandbox(config SandboxConfig) *Sandbox {
 }
 
 // startMemoryMonitoring starts a goroutine to monitor memory usage
+// DEPRECATED: Internal method of the deprecated sandbox implementation.
 func (s *Sandbox) startMemoryMonitoring() {
 	s.mutex.Lock()
 	if s.stopMemCheck != nil {
@@ -135,23 +148,23 @@ func (s *Sandbox) startMemoryMonitoring() {
 	}
 	s.stopMemCheck = make(chan struct{})
 	s.mutex.Unlock()
-	
+
 	go func() {
 		ticker := time.NewTicker(MemoryCheckInterval)
 		defer ticker.Stop()
-		
+
 		var memStats runtime_pkg.MemStats
-		
+
 		for {
 			select {
 			case <-ticker.C:
 				runtime_pkg.ReadMemStats(&memStats)
-				
+
 				func() {
 					s.mutex.Lock()
 					defer s.mutex.Unlock()
 					s.memoryUsed = int64(memStats.Alloc)
-					
+
 					// Check if memory limit exceeded
 					if s.memoryUsed > s.memoryLimit {
 						s.logger.Warn("Memory limit exceeded",
@@ -160,7 +173,7 @@ func (s *Sandbox) startMemoryMonitoring() {
 						s.interrupted = true
 					}
 				}()
-				
+
 				// Check if we need to exit after releasing the lock
 				if func() bool {
 					s.mutex.Lock()
@@ -180,7 +193,7 @@ func (s *Sandbox) startMemoryMonitoring() {
 func (s *Sandbox) stopMemoryMonitoring() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	if s.stopMemCheck != nil {
 		close(s.stopMemCheck)
 		s.stopMemCheck = nil
@@ -189,18 +202,17 @@ func (s *Sandbox) stopMemoryMonitoring() {
 
 // Execute runs JavaScript code in the sandbox
 func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOutput, error) {
+	// Lock only to reset state at the beginning, not for the entire function
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	// Reset state
 	s.interrupted = false
 	s.memoryUsed = 0
 	s.vm = goja.New()
-	
-	// Start memory monitoring
+	s.mutex.Unlock() // Release lock immediately after state reset
+
+	// Start memory monitoring (mutex is released so no deadlock)
 	s.startMemoryMonitoring()
 	defer s.stopMemoryMonitoring()
-	
+
 	// Ensure we have a valid function context
 	if input.FunctionContext == nil {
 		input.FunctionContext = &FunctionContext{
@@ -208,12 +220,12 @@ func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOu
 			ExecutionID: fmt.Sprintf("exec-%s", uuid.New().String()),
 		}
 	}
-	
+
 	// Initialize args if nil
 	if input.Args == nil {
 		input.Args = make(map[string]interface{})
 	}
-	
+
 	// Log execution start
 	s.logger.Info("Starting function execution",
 		zap.String("functionId", input.FunctionContext.FunctionID),
@@ -281,8 +293,8 @@ func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOu
 	// Set up function context for interoperability if enabled
 	if s.config.EnableInteroperability && input.FunctionContext != nil {
 		// Create context object with service access methods
-		contextObj := s.createFunctionContext(input.FunctionContext, logs)
-		
+		contextObj := s.createFunctionContext(input.FunctionContext, &logs)
+
 		err = s.vm.Set("context", contextObj)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set context object: %w", err)
@@ -306,6 +318,54 @@ func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOu
 
 	go func() {
 		startTime := time.Now()
+		logs := []string{}
+
+		// Re-create contextObj here to capture the correct 'logs' slice
+		var contextObj map[string]interface{}
+		if s.config.EnableInteroperability && input.FunctionContext != nil {
+			contextObj = s.createFunctionContext(input.FunctionContext, &logs)
+			err = s.vm.Set("context", contextObj)
+			if err != nil {
+				errChan <- fmt.Errorf("failed to set context object: %w", err)
+				return
+			}
+		}
+		// Also need to update the console logger to use the new logs slice
+		console := map[string]interface{}{
+			"log": func(args ...interface{}) {
+				message := fmt.Sprint(args...)
+				logs = append(logs, message)
+				s.logger.Info(message,
+					zap.String("functionId", input.FunctionContext.FunctionID),
+					zap.String("executionId", input.FunctionContext.ExecutionID))
+			},
+			"error": func(args ...interface{}) {
+				message := fmt.Sprint(args...)
+				logs = append(logs, "ERROR: "+message)
+				s.logger.Error(message,
+					zap.String("functionId", input.FunctionContext.FunctionID),
+					zap.String("executionId", input.FunctionContext.ExecutionID))
+			},
+			"info": func(args ...interface{}) {
+				message := fmt.Sprint(args...)
+				logs = append(logs, "INFO: "+message)
+				s.logger.Info(message,
+					zap.String("functionId", input.FunctionContext.FunctionID),
+					zap.String("executionId", input.FunctionContext.ExecutionID))
+			},
+			"warn": func(args ...interface{}) {
+				message := fmt.Sprint(args...)
+				logs = append(logs, "WARN: "+message)
+				s.logger.Warn(message,
+					zap.String("functionId", input.FunctionContext.FunctionID),
+					zap.String("executionId", input.FunctionContext.ExecutionID))
+			},
+		}
+		err = s.vm.Set("console", console)
+		if err != nil {
+			errChan <- fmt.Errorf("failed to set console object: %w", err)
+			return
+		}
 
 		// Wrap user code to call the main function
 		wrappedCode := fmt.Sprintf(`
@@ -333,7 +393,7 @@ func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOu
 		// Execute the code
 		var value goja.Value
 		var err error
-		
+
 		// Use a panic recovery to prevent VM panics from crashing the whole process
 		func() {
 			defer func() {
@@ -343,7 +403,7 @@ func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOu
 			}()
 			value, err = s.vm.RunString(wrappedCode)
 		}()
-		
+
 		duration := time.Since(startTime).Milliseconds()
 
 		if err != nil {
@@ -429,35 +489,36 @@ func (s *Sandbox) Execute(ctx context.Context, input FunctionInput) (*FunctionOu
 }
 
 // createFunctionContext creates a JavaScript object with methods for interacting with Neo services
-func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map[string]interface{} {
+func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs *[]string) map[string]interface{} {
 	// Base context properties
 	contextObj := map[string]interface{}{
-		"functionId":  ctx.FunctionID,
-		"executionId": ctx.ExecutionID,
-		"owner":       ctx.Owner,
-		"caller":      ctx.Caller,
-		"parameters":  ctx.Parameters,
-		"env":         ctx.Env,
-		"traceId":     ctx.TraceID,
+		"functionId":      ctx.FunctionID,
+		"executionId":     ctx.ExecutionID,
+		"owner":           ctx.Owner,
+		"caller":          ctx.Caller,
+		"parameters":      ctx.Parameters,
+		"env":             ctx.Env,
+		"traceId":         ctx.TraceID,
+		"serviceLayerUrl": ctx.ServiceLayerURL,
 	}
 
 	// Add logging methods
 	contextObj["log"] = func(message string) {
-		logs = append(logs, message)
+		*logs = append(*logs, message)
 		s.logger.Info(message,
 			zap.String("functionId", ctx.FunctionID),
 			zap.String("executionId", ctx.ExecutionID))
 	}
-	
+
 	contextObj["error"] = func(message string) {
-		logs = append(logs, "ERROR: "+message)
+		*logs = append(*logs, "ERROR: "+message)
 		s.logger.Error(message,
 			zap.String("functionId", ctx.FunctionID),
 			zap.String("executionId", ctx.ExecutionID))
 	}
-	
+
 	contextObj["warn"] = func(message string) {
-		logs = append(logs, "WARN: "+message)
+		*logs = append(*logs, "WARN: "+message)
 		s.logger.Warn(message,
 			zap.String("functionId", ctx.FunctionID),
 			zap.String("executionId", ctx.ExecutionID))
@@ -468,20 +529,58 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 		// ====== Secrets Management ======
 		// Create a new secrets object
 		secretsObj := map[string]interface{}{}
-		
+
 		// Get secret method
 		secretsObj["get"] = func(secretName string) interface{} {
 			if ctx.Services.Secrets != nil {
-				// In a real implementation, we would call the Secrets service
-				// For now, we'll return a placeholder
 				s.logger.Info("Accessing secret",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("secretName", secretName))
-				
-				// This would be replaced with actual secret retrieval logic
+
+				// Define the expected interface for SecretsService
+				type SecretsGetter interface {
+					GetSecret(ctx context.Context, functionID, secretName string) (string, error)
+				}
+
+				// Type assert the service
+				secretsService, ok := ctx.Services.Secrets.(SecretsGetter)
+				if !ok {
+					s.logger.Error("Invalid secrets service type provided to sandbox",
+						zap.String("functionId", ctx.FunctionID))
+					return map[string]interface{}{
+						"success": false,
+						"error":   "Internal error: Invalid secrets service configuration",
+					}
+				}
+
+				// Call the actual GetSecret method
+				value, err := secretsService.GetSecret(context.Background(), ctx.FunctionID, secretName)
+				if err != nil {
+					s.logger.Warn("Failed to get secret",
+						zap.String("functionId", ctx.FunctionID),
+						zap.String("secretName", secretName),
+						zap.Error(err))
+					return map[string]interface{}{
+						"success": false,
+						"error":   fmt.Sprintf("Failed to retrieve secret: %v", err),
+					}
+				}
+
+				// The MockSecretsService.GetSecret (via Get) returns "" if not found.
+				if value == "" {
+					s.logger.Info("Secret not found",
+						zap.String("functionId", ctx.FunctionID),
+						zap.String("secretName", secretName))
+					return map[string]interface{}{
+						"success": false,
+						"error":   "Secret not found",
+					}
+				}
+
+				// Return the actual value
 				return map[string]interface{}{
 					"success": true,
-					"value":   "********", // Never log actual secret values
+					"value":   value, // Return the actual value, not masked
 				}
 			}
 			s.logger.Error("Secrets service not available",
@@ -491,19 +590,37 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Secrets service not available",
 			}
 		}
-		
+
 		// Set secret method
 		secretsObj["set"] = func(secretName string, secretValue string) interface{} {
 			if ctx.Services.Secrets != nil {
-				// In a real implementation, we would call the Secrets service
-				// For now, we'll return a placeholder
-				s.logger.Info("Setting secret",
-					zap.String("functionId", ctx.FunctionID),
-					zap.String("secretName", secretName))
-				
-				return map[string]interface{}{
-					"success": true,
+				// Define the expected interface
+				type SecretsSetter interface {
+					SetSecret(ctx context.Context, functionID, secretName, value string) error
 				}
+				// Type assert
+				secretsService, ok := ctx.Services.Secrets.(SecretsSetter)
+				if !ok {
+					s.logger.Error("Invalid secrets service type provided to sandbox for set",
+						zap.String("functionId", ctx.FunctionID))
+					return map[string]interface{}{
+						"success": false,
+						"error":   "Internal error: Invalid secrets service configuration",
+					}
+				}
+				// Call the actual SetSecret method
+				err := secretsService.SetSecret(context.Background(), ctx.FunctionID, secretName, secretValue)
+				if err != nil {
+					s.logger.Error("Failed to set secret",
+						zap.String("functionId", ctx.FunctionID),
+						zap.String("secretName", secretName),
+						zap.Error(err))
+					return map[string]interface{}{
+						"success": false,
+						"error":   fmt.Sprintf("Failed to set secret: %v", err),
+					}
+				}
+				return map[string]interface{}{"success": true}
 			}
 			s.logger.Error("Secrets service not available",
 				zap.String("functionId", ctx.FunctionID))
@@ -512,19 +629,37 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Secrets service not available",
 			}
 		}
-		
+
 		// Delete secret method
 		secretsObj["delete"] = func(secretName string) interface{} {
 			if ctx.Services.Secrets != nil {
-				// In a real implementation, we would call the Secrets service
-				// For now, we'll return a placeholder
-				s.logger.Info("Deleting secret",
-					zap.String("functionId", ctx.FunctionID),
-					zap.String("secretName", secretName))
-				
-				return map[string]interface{}{
-					"success": true,
+				// Define the expected interface
+				type SecretsDeleter interface {
+					DeleteSecret(ctx context.Context, functionID, secretName string) error
 				}
+				// Type assert
+				secretsService, ok := ctx.Services.Secrets.(SecretsDeleter)
+				if !ok {
+					s.logger.Error("Invalid secrets service type provided to sandbox for delete",
+						zap.String("functionId", ctx.FunctionID))
+					return map[string]interface{}{
+						"success": false,
+						"error":   "Internal error: Invalid secrets service configuration",
+					}
+				}
+				// Call the actual DeleteSecret method
+				err := secretsService.DeleteSecret(context.Background(), ctx.FunctionID, secretName)
+				if err != nil {
+					s.logger.Error("Failed to delete secret",
+						zap.String("functionId", ctx.FunctionID),
+						zap.String("secretName", secretName),
+						zap.Error(err))
+					return map[string]interface{}{
+						"success": false,
+						"error":   fmt.Sprintf("Failed to delete secret: %v", err),
+					}
+				}
+				return map[string]interface{}{"success": true}
 			}
 			s.logger.Error("Secrets service not available",
 				zap.String("functionId", ctx.FunctionID))
@@ -533,14 +668,14 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Secrets service not available",
 			}
 		}
-		
+
 		// Add secrets object to context
 		contextObj["secrets"] = secretsObj
 
 		// ====== Function Invocation ======
 		// Create a new functions object
 		functionsObj := map[string]interface{}{}
-		
+
 		// Invoke function method
 		functionsObj["invoke"] = func(functionId string, args map[string]interface{}) interface{} {
 			if ctx.Services.Functions != nil {
@@ -549,7 +684,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Invoking function",
 					zap.String("callerFunctionId", ctx.FunctionID),
 					zap.String("targetFunctionId", functionId))
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"result":  fmt.Sprintf("Result from function %s", functionId),
@@ -562,14 +697,14 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Functions service not available",
 			}
 		}
-		
+
 		// Add functions object to context
 		contextObj["functions"] = functionsObj
 
 		// ====== Gas Bank ======
 		// Create a new gas bank object
 		gasBankObj := map[string]interface{}{}
-		
+
 		// Get gas balance method
 		gasBankObj["getBalance"] = func() interface{} {
 			if ctx.Services.GasBank != nil {
@@ -578,7 +713,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Getting gas balance",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("owner", ctx.Owner))
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"balance": 1000.0,
@@ -592,14 +727,39 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Gas Bank service not available",
 			}
 		}
-		
+
+		// Add deposit method
+		gasBankObj["deposit"] = func(amount float64) interface{} {
+			if ctx.Services.GasBank != nil {
+				// Placeholder - In real implementation, call Gas Bank service
+				s.logger.Info("Depositing gas",
+					zap.String("functionId", ctx.FunctionID),
+					zap.Float64("amount", amount))
+				return map[string]interface{}{"success": true, "newBalance": 1000.0 + amount} // Mocked
+			}
+			return map[string]interface{}{"success": false, "error": "Gas Bank service not available"}
+		}
+
+		// Add withdraw method
+		gasBankObj["withdraw"] = func(amount float64) interface{} {
+			if ctx.Services.GasBank != nil {
+				// Placeholder - In real implementation, call Gas Bank service
+				s.logger.Info("Withdrawing gas",
+					zap.String("functionId", ctx.FunctionID),
+					zap.Float64("amount", amount))
+				// Add mock logic for insufficient funds if needed
+				return map[string]interface{}{"success": true, "newBalance": 1000.0 - amount} // Mocked
+			}
+			return map[string]interface{}{"success": false, "error": "Gas Bank service not available"}
+		}
+
 		// Add gas bank object to context
 		contextObj["gasBank"] = gasBankObj
 
 		// ====== Price Feed ======
 		// Create a new price feed object
 		priceFeedObj := map[string]interface{}{}
-		
+
 		// Get price method
 		priceFeedObj["getPrice"] = func(symbol string) interface{} {
 			if ctx.Services.PriceFeed != nil {
@@ -608,16 +768,16 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Getting price",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("symbol", symbol))
-				
+
 				// This would be replaced with actual price feed logic
 				mockPrices := map[string]float64{
-					"NEO":  50.0,
-					"GAS":  15.0,
-					"BTC":  30000.0,
-					"ETH":  2000.0,
-					"USD":  1.0,
+					"NEO": 50.0,
+					"GAS": 15.0,
+					"BTC": 30000.0,
+					"ETH": 2000.0,
+					"USD": 1.0,
 				}
-				
+
 				price, ok := mockPrices[symbol]
 				if !ok {
 					return map[string]interface{}{
@@ -625,12 +785,12 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 						"error":   fmt.Sprintf("Price not available for symbol: %s", symbol),
 					}
 				}
-				
+
 				return map[string]interface{}{
-					"success": true,
-					"symbol":  symbol,
-					"price":   price,
-					"currency": "USD",
+					"success":   true,
+					"symbol":    symbol,
+					"price":     price,
+					"currency":  "USD",
 					"timestamp": time.Now().Unix(),
 				}
 			}
@@ -641,14 +801,14 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Price Feed service not available",
 			}
 		}
-		
+
 		// Add price feed object to context
 		contextObj["priceFeed"] = priceFeedObj
 
 		// ====== Trigger Management ======
 		// Create a new trigger object
 		triggerObj := map[string]interface{}{}
-		
+
 		// Create trigger method
 		triggerObj["create"] = func(triggerType string, triggerConfig map[string]interface{}) interface{} {
 			if ctx.Services.Trigger != nil {
@@ -657,7 +817,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Creating trigger",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("triggerType", triggerType))
-				
+
 				return map[string]interface{}{
 					"success":   true,
 					"triggerId": fmt.Sprintf("trigger-%s", uuid.New().String()),
@@ -672,7 +832,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Trigger service not available",
 			}
 		}
-		
+
 		// Update trigger method
 		triggerObj["update"] = func(triggerId string, triggerConfig map[string]interface{}) interface{} {
 			if ctx.Services.Trigger != nil {
@@ -681,7 +841,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Updating trigger",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("triggerId", triggerId))
-				
+
 				return map[string]interface{}{
 					"success":   true,
 					"triggerId": triggerId,
@@ -695,7 +855,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Trigger service not available",
 			}
 		}
-		
+
 		// Delete trigger method
 		triggerObj["delete"] = func(triggerId string) interface{} {
 			if ctx.Services.Trigger != nil {
@@ -704,7 +864,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Deleting trigger",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("triggerId", triggerId))
-				
+
 				return map[string]interface{}{
 					"success":   true,
 					"triggerId": triggerId,
@@ -717,7 +877,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Trigger service not available",
 			}
 		}
-		
+
 		// List triggers method
 		triggerObj["list"] = func() interface{} {
 			if ctx.Services.Trigger != nil {
@@ -725,7 +885,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				// For now, we'll return a placeholder
 				s.logger.Info("Listing triggers",
 					zap.String("functionId", ctx.FunctionID))
-				
+
 				return []map[string]interface{}{
 					{
 						"triggerId": "trigger-example-1",
@@ -738,14 +898,37 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				zap.String("functionId", ctx.FunctionID))
 			return []interface{}{}
 		}
-		
+
+		// Add get trigger method
+		triggerObj["get"] = func(triggerId string) interface{} {
+			if ctx.Services.Trigger != nil {
+				// Placeholder - In real implementation, call Trigger service
+				s.logger.Info("Getting trigger details",
+					zap.String("functionId", ctx.FunctionID),
+					zap.String("triggerId", triggerId))
+				// Mock response
+				if triggerId == "trigger-example-1" {
+					return map[string]interface{}{
+						"success": true,
+						"trigger": map[string]interface{}{
+							"triggerId": "trigger-example-1",
+							"type":      "blockchain",
+							"config":    map[string]interface{}{"event": "Transfer"},
+						},
+					}
+				}
+				return map[string]interface{}{"success": false, "error": "Trigger not found"}
+			}
+			return map[string]interface{}{"success": false, "error": "Trigger service not available"}
+		}
+
 		// Add trigger object to context
 		contextObj["trigger"] = triggerObj
 
 		// ====== Event Handling ======
 		// Create a new event object
 		eventObj := map[string]interface{}{}
-		
+
 		// Register blockchain event handler
 		eventObj["onBlockchain"] = func(eventConfig map[string]interface{}, handlerFunctionId string) interface{} {
 			if ctx.Services.Trigger != nil {
@@ -754,7 +937,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Registering blockchain event handler",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("handlerFunctionId", handlerFunctionId))
-				
+
 				return map[string]interface{}{
 					"success":   true,
 					"eventId":   fmt.Sprintf("event-%s", uuid.New().String()),
@@ -769,7 +952,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Trigger service not available",
 			}
 		}
-		
+
 		// Register time-based event handler
 		eventObj["onSchedule"] = func(cronExpression string, handlerFunctionId string) interface{} {
 			if ctx.Services.Trigger != nil {
@@ -779,7 +962,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("cronExpression", cronExpression),
 					zap.String("handlerFunctionId", handlerFunctionId))
-				
+
 				return map[string]interface{}{
 					"success":        true,
 					"eventId":        fmt.Sprintf("event-%s", uuid.New().String()),
@@ -794,7 +977,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Trigger service not available",
 			}
 		}
-		
+
 		// Register API event handler
 		eventObj["onAPI"] = func(endpoint string, handlerFunctionId string) interface{} {
 			if ctx.Services.Trigger != nil {
@@ -804,7 +987,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("endpoint", endpoint),
 					zap.String("handlerFunctionId", handlerFunctionId))
-				
+
 				return map[string]interface{}{
 					"success":   true,
 					"eventId":   fmt.Sprintf("event-%s", uuid.New().String()),
@@ -819,14 +1002,14 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Trigger service not available",
 			}
 		}
-		
+
 		// Add event object to context
 		contextObj["event"] = eventObj
 
 		// ====== Transaction Management ======
 		// Create a new transaction object
 		txObj := map[string]interface{}{}
-		
+
 		// Create transaction method
 		txObj["create"] = func(txConfig map[string]interface{}) interface{} {
 			if ctx.Services.Transaction != nil {
@@ -834,7 +1017,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				s.logger.Info("Creating transaction",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("owner", ctx.Owner))
-				
+
 				// Validate required transaction parameters
 				if txConfig == nil {
 					return map[string]interface{}{
@@ -842,10 +1025,10 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 						"error":   "Transaction configuration is required",
 					}
 				}
-				
+
 				// Add owner to config
 				txConfig["owner"] = ctx.Owner
-				
+
 				// Create the transaction
 				txService, ok := ctx.Services.Transaction.(transaction.Service)
 				if !ok {
@@ -856,7 +1039,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
+
 				txId, err := txService.Create(txConfig)
 				if err != nil {
 					s.logger.Error("Failed to create transaction",
@@ -867,7 +1050,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 						"error":   err.Error(),
 					}
 				}
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"txId":    txId,
@@ -882,57 +1065,56 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// Sign transaction method
+		// Define expected interface
+		type TxSigner interface {
+			Sign(txID string, account *wallet.Account) (map[string]interface{}, error)
+		}
 		txObj["sign"] = func(txId string) interface{} {
 			if ctx.Services.Transaction != nil {
 				// Call the Transaction service
 				s.logger.Info("Signing transaction",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("txId", txId))
-				
+
 				// Validate transaction ID
 				if txId == "" {
-					return map[string]interface{}{
-						"success": false,
-						"error":   "Transaction ID is required",
-					}
+					return map[string]interface{}{"success": false, "error": "Transaction ID is required"}
 				}
-				
-				txService, ok := ctx.Services.Transaction.(transaction.Service)
+
+				// Type assert
+				txService, ok := ctx.Services.Transaction.(TxSigner)
 				if !ok {
-					s.logger.Error("Invalid transaction service type",
+					s.logger.Error("Invalid transaction service type for Sign",
 						zap.String("functionId", ctx.FunctionID))
 					return map[string]interface{}{
 						"success": false,
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
+
 				// In a real implementation, we would get the account from a wallet service
 				// For the sandbox environment, we'll create a mock account for testing
 				s.logger.Info("Creating mock account for signing in sandbox environment",
 					zap.String("functionId", ctx.FunctionID))
-				
+
 				// Create a mock wallet.Account for testing purposes
 				mockAccount := &wallet.Account{}
-				
+
 				// Sign the transaction with the mock account
 				txDetails, err := txService.Sign(txId, mockAccount)
 				if err != nil {
 					s.logger.Error("Failed to sign transaction",
 						zap.String("functionId", ctx.FunctionID),
 						zap.Error(err))
-					return map[string]interface{}{
-						"success": false,
-						"error":   err.Error(),
-					}
+					return map[string]interface{}{"success": false, "error": err.Error()}
 				}
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"txId":    txId,
-					"status":  txDetails["status"],
+					"status":  txDetails["status"], // Assuming Sign returns status
 				}
 			}
 			s.logger.Error("Transaction service not available",
@@ -942,45 +1124,44 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// Send transaction method
+		// Define expected interface
+		type TxSender interface {
+			Send(ctx context.Context, txID string) (string, error)
+		}
 		txObj["send"] = func(txId string) interface{} {
 			if ctx.Services.Transaction != nil {
 				// Call the Transaction service
 				s.logger.Info("Sending transaction",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("txId", txId))
-				
+
 				// Validate transaction ID
 				if txId == "" {
-					return map[string]interface{}{
-						"success": false,
-						"error":   "Transaction ID is required",
-					}
+					return map[string]interface{}{"success": false, "error": "Transaction ID is required"}
 				}
-				
-				txService, ok := ctx.Services.Transaction.(transaction.Service)
+
+				// Type assert
+				txService, ok := ctx.Services.Transaction.(TxSender)
 				if !ok {
-					s.logger.Error("Invalid transaction service type",
+					s.logger.Error("Invalid transaction service type for Send",
 						zap.String("functionId", ctx.FunctionID))
 					return map[string]interface{}{
 						"success": false,
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
+
 				// Send the transaction
 				txHash, err := txService.Send(context.Background(), txId)
 				if err != nil {
 					s.logger.Error("Failed to send transaction",
 						zap.String("functionId", ctx.FunctionID),
 						zap.Error(err))
-					return map[string]interface{}{
-						"success": false,
-						"error":   err.Error(),
-					}
+					return map[string]interface{}{"success": false, "error": err.Error()}
 				}
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"txId":    txId,
@@ -995,47 +1176,44 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// Get transaction status method
+		// Define expected interface
+		type TxStatusGetter interface {
+			Status(txID string) (string, error)
+		}
 		txObj["status"] = func(txId string) interface{} {
 			if ctx.Services.Transaction != nil {
 				// Call the Transaction service
 				s.logger.Info("Getting transaction status",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("txId", txId))
-				
+
 				// Validate transaction ID
 				if txId == "" {
-					return map[string]interface{}{
-						"success": false,
-						"error":   "Transaction ID is required",
-					}
+					return map[string]interface{}{"success": false, "error": "Transaction ID is required"}
 				}
-				
-				txService, ok := ctx.Services.Transaction.(transaction.Service)
+
+				// Type assert
+				txService, ok := ctx.Services.Transaction.(TxStatusGetter)
 				if !ok {
-					s.logger.Error("Invalid transaction service type",
+					s.logger.Error("Invalid transaction service type for Status",
 						zap.String("functionId", ctx.FunctionID))
 					return map[string]interface{}{
 						"success": false,
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
+
 				// Get transaction status
-				// In a real implementation, this would query the blockchain
-				// For now, we'll return a mock result
 				status, err := txService.Status(txId)
 				if err != nil {
 					s.logger.Error("Failed to get transaction status",
 						zap.String("functionId", ctx.FunctionID),
 						zap.Error(err))
-					return map[string]interface{}{
-						"success": false,
-						"error":   err.Error(),
-					}
+					return map[string]interface{}{"success": false, "error": err.Error()}
 				}
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"txId":    txId,
@@ -1049,47 +1227,46 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// Get transaction details method
+		// Define expected interface
+		type TxGetter interface {
+			Get(txID string) (map[string]interface{}, error)
+		}
 		txObj["get"] = func(txId string) interface{} {
 			if ctx.Services.Transaction != nil {
 				// Call the Transaction service
 				s.logger.Info("Getting transaction details",
 					zap.String("functionId", ctx.FunctionID),
 					zap.String("txId", txId))
-				
+
 				// Validate transaction ID
 				if txId == "" {
-					return map[string]interface{}{
-						"success": false,
-						"error":   "Transaction ID is required",
-					}
+					return map[string]interface{}{"success": false, "error": "Transaction ID is required"}
 				}
-				
-				txService, ok := ctx.Services.Transaction.(transaction.Service)
+
+				// Type assert
+				txService, ok := ctx.Services.Transaction.(TxGetter)
 				if !ok {
-					s.logger.Error("Invalid transaction service type",
+					s.logger.Error("Invalid transaction service type for Get",
 						zap.String("functionId", ctx.FunctionID))
 					return map[string]interface{}{
 						"success": false,
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
+
 				// Get transaction details
 				txDetails, err := txService.Get(txId)
 				if err != nil {
 					s.logger.Error("Failed to get transaction details",
 						zap.String("functionId", ctx.FunctionID),
 						zap.Error(err))
-					return map[string]interface{}{
-						"success": false,
-						"error":   err.Error(),
-					}
+					return map[string]interface{}{"success": false, "error": err.Error()}
 				}
-				
+
 				return map[string]interface{}{
-					"success": true,
+					"success":     true,
 					"transaction": txDetails,
 				}
 			}
@@ -1100,39 +1277,41 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// List transactions method
+		// Define expected interface
+		type TxLister interface {
+			List() ([]interface{}, error)
+		}
 		txObj["list"] = func(filter map[string]interface{}) interface{} {
 			if ctx.Services.Transaction != nil {
 				// Call the Transaction service
 				s.logger.Info("Listing transactions",
 					zap.String("functionId", ctx.FunctionID),
 					zap.Any("filter", filter))
-				
-				txService, ok := ctx.Services.Transaction.(transaction.Service)
+
+				// Type assert
+				txService, ok := ctx.Services.Transaction.(TxLister)
 				if !ok {
-					s.logger.Error("Invalid transaction service type",
+					s.logger.Error("Invalid transaction service type for List",
 						zap.String("functionId", ctx.FunctionID))
 					return map[string]interface{}{
 						"success": false,
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
-				// List transactions
+
+				// List transactions (Note: Mock List doesn't use filter)
 				txList, err := txService.List()
 				if err != nil {
 					s.logger.Error("Failed to list transactions",
 						zap.String("functionId", ctx.FunctionID),
 						zap.Error(err))
-					return map[string]interface{}{
-						"success": false,
-						"error":   err.Error(),
-					}
+					return map[string]interface{}{"success": false, "error": err.Error()}
 				}
-				
+
 				return map[string]interface{}{
-					"success": true,
+					"success":      true,
 					"transactions": txList,
 				}
 			}
@@ -1143,50 +1322,49 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// Estimate transaction fee method
+		// Define expected interface
+		type TxFeeEstimator interface {
+			EstimateFee(config map[string]interface{}) (string, error)
+		}
 		txObj["estimateFee"] = func(txConfig map[string]interface{}) interface{} {
 			if ctx.Services.Transaction != nil {
 				// Call the Transaction service
 				s.logger.Info("Estimating transaction fee",
 					zap.String("functionId", ctx.FunctionID),
 					zap.Any("txConfig", txConfig))
-				
+
 				// Validate required transaction parameters
 				if txConfig == nil {
-					return map[string]interface{}{
-						"success": false,
-						"error":   "Transaction configuration is required",
-					}
+					return map[string]interface{}{"success": false, "error": "Transaction configuration is required"}
 				}
-				
-				txService, ok := ctx.Services.Transaction.(transaction.Service)
+
+				// Type assert
+				txService, ok := ctx.Services.Transaction.(TxFeeEstimator)
 				if !ok {
-					s.logger.Error("Invalid transaction service type",
+					s.logger.Error("Invalid transaction service type for EstimateFee",
 						zap.String("functionId", ctx.FunctionID))
 					return map[string]interface{}{
 						"success": false,
 						"error":   "Invalid transaction service configuration",
 					}
 				}
-				
+
 				// Estimate fee
 				fee, err := txService.EstimateFee(txConfig)
 				if err != nil {
 					s.logger.Error("Failed to estimate transaction fee",
 						zap.String("functionId", ctx.FunctionID),
 						zap.Error(err))
-					return map[string]interface{}{
-						"success": false,
-						"error":   err.Error(),
-					}
+					return map[string]interface{}{"success": false, "error": err.Error()}
 				}
-				
+
 				return map[string]interface{}{
 					"success": true,
 					"fee":     fee,
 					"asset":   "GAS",
-					"network": "testnet",
+					"network": "testnet", // Mock network
 				}
 			}
 			s.logger.Error("Transaction service not available",
@@ -1196,7 +1374,7 @@ func (s *Sandbox) createFunctionContext(ctx *FunctionContext, logs []string) map
 				"error":   "Transaction service not available",
 			}
 		}
-		
+
 		// Add transaction object to context
 		contextObj["transaction"] = txObj
 	}

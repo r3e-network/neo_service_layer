@@ -52,19 +52,28 @@ type ServicesConfig struct {
 	Metrics    MetricsConfig    `yaml:"metrics"`
 	Logging    LoggingConfig    `yaml:"logging"`
 	Account    AccountConfig    `yaml:"account"`
+	Wallet     WalletConfig     `yaml:"wallet"`
 }
 
 // GasBankConfig represents gas bank configuration
 type GasBankConfig struct {
-	InitialGas           float64       `yaml:"initialGas"`
-	RefillAmount         float64       `yaml:"refillAmount"`
-	RefillThreshold      float64       `yaml:"refillThreshold"`
-	MaxAllocationPerUser float64       `yaml:"maxAllocationPerUser"`
-	MinAllocationAmount  float64       `yaml:"minAllocationAmount"`
-	MaxAllocationTime    time.Duration `yaml:"maxAllocationTime"`
-	CooldownPeriod       time.Duration `yaml:"cooldownPeriod"`
-	StoreType            string        `yaml:"storeType"`
-	MonitorInterval      time.Duration `yaml:"monitorInterval"`
+	InitialGas              float64       `yaml:"initialGas"`
+	RefillAmount            float64       `yaml:"refillAmount"`
+	RefillThreshold         float64       `yaml:"refillThreshold"`
+	MaxAllocationPerUser    float64       `yaml:"maxAllocationPerUser"`
+	MinAllocationAmount     float64       `yaml:"minAllocationAmount"`
+	MaxAllocationTime       time.Duration `yaml:"maxAllocationTime"`
+	CooldownPeriod          time.Duration `yaml:"cooldownPeriod"`
+	StoreType               string        `yaml:"storeType"`
+	StorePath               string        `yaml:"storePath,omitempty"`
+	MonitorInterval         time.Duration `yaml:"monitorInterval"`
+	ExpirationCheckInterval time.Duration `yaml:"expirationCheckInterval,omitempty"`
+	EnableUserBalances      bool          `yaml:"enableUserBalances,omitempty"`
+	MinDepositAmount        float64       `yaml:"minDepositAmount,omitempty"`
+	WithdrawalFee           float64       `yaml:"withdrawalFee,omitempty"`
+	NeoNodeURL              string        `yaml:"neoNodeUrl,omitempty"`
+	WalletPath              string        `yaml:"walletPath,omitempty"`
+	WalletPass              string        `yaml:"walletPass,omitempty"`
 }
 
 // PriceFeedConfig represents price feed configuration
@@ -73,6 +82,7 @@ type PriceFeedConfig struct {
 	MinDeviation   float64       `yaml:"minDeviation"`
 	HeartbeatTime  time.Duration `yaml:"heartbeatTime"`
 	Sources        []string      `yaml:"sources"`
+	ContractHash   string        `yaml:"contractHash,omitempty"`
 }
 
 // AutomationConfig represents automation configuration
@@ -85,39 +95,54 @@ type AutomationConfig struct {
 
 // FunctionsConfig represents functions configuration
 type FunctionsConfig struct {
-	ExecutionWindow time.Duration `yaml:"executionWindow"`
-	MaxMemory       int           `yaml:"maxMemory"`
-	MaxTimeout      time.Duration `yaml:"maxTimeout"`
-	DefaultRuntime  string        `yaml:"defaultRuntime"`
+	ExecutionWindow        time.Duration `yaml:"executionWindow"`
+	MaxMemory              int           `yaml:"maxMemory"`
+	MaxTimeout             time.Duration `yaml:"maxTimeout"`
+	DefaultRuntime         string        `yaml:"defaultRuntime"`
+	MaxFunctionSize        int           `yaml:"maxFunctionSize,omitempty"`
+	EnableNetworkAccess    bool          `yaml:"enableNetworkAccess,omitempty"`
+	EnableFileIO           bool          `yaml:"enableFileIO,omitempty"`
+	ServiceLayerURL        string        `yaml:"serviceLayerUrl,omitempty"`
+	EnableInteroperability bool          `yaml:"enableInteroperability,omitempty"`
 }
 
 // TriggerConfig represents trigger configuration
 type TriggerConfig struct {
-	MaxTriggers     int           `yaml:"maxTriggers"`
-	MaxExecutions   int           `yaml:"maxExecutions"`
-	RetentionPeriod time.Duration `yaml:"retentionPeriod"`
+	MaxTriggers           int           `yaml:"maxTriggers"`
+	MaxExecutions         int           `yaml:"maxExecutions"`
+	RetentionPeriod       time.Duration `yaml:"retentionPeriod"`
+	ExecutionWindow       time.Duration `yaml:"executionWindow,omitempty"`
+	MaxConcurrentTriggers int           `yaml:"maxConcurrentTriggers,omitempty"`
 }
 
 // SecretsConfig represents secrets configuration
 type SecretsConfig struct {
-	RotationInterval time.Duration `yaml:"rotationInterval"`
-	StoreType        string        `yaml:"storeType"`
-	EncryptionKey    string        `yaml:"encryptionKey"`
+	RotationInterval    time.Duration `yaml:"rotationInterval"`
+	StoreType           string        `yaml:"storeType"`
+	EncryptionKey       string        `yaml:"encryptionKey"`
+	MaxSecretSize       int           `yaml:"maxSecretSize,omitempty"`
+	MaxSecretsPerUser   int           `yaml:"maxSecretsPerUser,omitempty"`
+	SecretExpiryEnabled bool          `yaml:"secretExpiryEnabled,omitempty"`
+	DefaultTTL          time.Duration `yaml:"defaultTTL,omitempty"`
+	StorePath           string        `yaml:"storePath,omitempty"`
 }
 
 // MetricsConfig represents metrics configuration
 type MetricsConfig struct {
-	CollectionInterval time.Duration `yaml:"collectionInterval"`
-	RetentionPeriod    time.Duration `yaml:"retentionPeriod"`
-	ExportFormat       string        `yaml:"exportFormat"`
+	CollectionInterval time.Duration     `yaml:"collectionInterval"`
+	RetentionPeriod    time.Duration     `yaml:"retentionPeriod"`
+	ExportFormat       string            `yaml:"exportFormat"`
+	StorageConfig      map[string]string `yaml:"storageConfig,omitempty"`
 }
 
 // LoggingConfig represents logging configuration
 type LoggingConfig struct {
-	Format          string        `yaml:"format"`
-	RetentionPeriod time.Duration `yaml:"retentionPeriod"`
-	MaxSize         int           `yaml:"maxSize"`
-	MaxBackups      int           `yaml:"maxBackups"`
+	Format            string        `yaml:"format"`
+	RetentionPeriod   time.Duration `yaml:"retentionPeriod"`
+	MaxSize           int           `yaml:"maxSize"`
+	MaxBackups        int           `yaml:"maxBackups"`
+	LogFilePath       string        `yaml:"logFilePath"`
+	EnableCompression bool          `yaml:"enableCompression"`
 }
 
 // SecurityConfig represents security configuration
@@ -134,6 +159,16 @@ type AccountConfig struct {
 	SignatureTimeout time.Duration `yaml:"signatureTimeout"`
 	RecoveryWindow   time.Duration `yaml:"recoveryWindow"`
 	TEERequired      bool          `yaml:"teeRequired"`
+}
+
+// WalletConfig represents wallet configuration for the service
+// NOTE: This needs to be defined based on wallet.Config needs
+// Example structure:
+type WalletConfig struct {
+	Path           string `yaml:"path"`
+	Password       string `yaml:"password"` // Be careful with storing passwords in config
+	AddressVersion byte   `yaml:"addressVersion"`
+	Network        string `yaml:"network"` // Use string like "mainnet", "testnet"
 }
 
 // LoadConfig loads configuration from a file
@@ -156,7 +191,14 @@ func DefaultConfig() *Config {
 	return &Config{
 		Environment: "development",
 		LogLevel:    "info",
-		API:         DefaultAPIConfig(),
+		API: APIConfig{
+			Host:               "localhost",
+			Port:               8080,
+			Endpoint:           "http://localhost:10332",
+			Timeout:            30 * time.Second,
+			EnableCORS:         true,
+			MaxRequestBodySize: 10 * 1024 * 1024, // 10MB
+		},
 		Database: DatabaseConfig{
 			Driver:   "postgres",
 			Host:     "localhost",
@@ -174,21 +216,30 @@ func DefaultConfig() *Config {
 		},
 		Services: ServicesConfig{
 			GasBank: GasBankConfig{
-				InitialGas:           1000,
-				RefillAmount:         100,
-				RefillThreshold:      10,
-				MaxAllocationPerUser: 100,
-				MinAllocationAmount:  1,
-				MaxAllocationTime:    24 * time.Hour,
-				CooldownPeriod:       1 * time.Hour,
-				StoreType:            "postgres",
-				MonitorInterval:      5 * time.Minute,
+				InitialGas:              1000,
+				RefillAmount:            100,
+				RefillThreshold:         10,
+				MaxAllocationPerUser:    100,
+				MinAllocationAmount:     1,
+				MaxAllocationTime:       24 * time.Hour,
+				CooldownPeriod:          1 * time.Hour,
+				StoreType:               "memory",
+				StorePath:               "",
+				MonitorInterval:         5 * time.Minute,
+				ExpirationCheckInterval: 15 * time.Minute,
+				EnableUserBalances:      false,
+				MinDepositAmount:        0.1,
+				WithdrawalFee:           0,
+				NeoNodeURL:              "",
+				WalletPath:              "",
+				WalletPass:              "",
 			},
 			PriceFeed: PriceFeedConfig{
 				UpdateInterval: 1 * time.Minute,
 				MinDeviation:   0.5,
 				HeartbeatTime:  24 * time.Hour,
 				Sources:        []string{"binance", "huobi", "okex"},
+				ContractHash:   "",
 			},
 			Automation: AutomationConfig{
 				CheckInterval:    1 * time.Minute,
@@ -197,30 +248,46 @@ func DefaultConfig() *Config {
 				MaxRetries:       3,
 			},
 			Functions: FunctionsConfig{
-				ExecutionWindow: 5 * time.Minute,
-				MaxMemory:       512,
-				MaxTimeout:      30 * time.Second,
-				DefaultRuntime:  "python3.9",
+				ExecutionWindow:        5 * time.Minute,
+				MaxMemory:              512,
+				MaxTimeout:             30 * time.Second,
+				DefaultRuntime:         "javascript",
+				MaxFunctionSize:        1024 * 1024,
+				EnableNetworkAccess:    false,
+				EnableFileIO:           false,
+				ServiceLayerURL:        "http://localhost:8080",
+				EnableInteroperability: true,
 			},
 			Trigger: TriggerConfig{
-				MaxTriggers:     100,
-				MaxExecutions:   1000,
-				RetentionPeriod: 30 * 24 * time.Hour,
+				MaxTriggers:           100,
+				MaxExecutions:         1000,
+				RetentionPeriod:       30 * 24 * time.Hour,
+				ExecutionWindow:       24 * time.Hour,
+				MaxConcurrentTriggers: 10,
 			},
 			Secrets: SecretsConfig{
-				RotationInterval: 30 * 24 * time.Hour,
-				StoreType:        "postgres",
+				RotationInterval:    30 * 24 * time.Hour,
+				StoreType:           "memory",
+				EncryptionKey:       "",
+				MaxSecretSize:       10 * 1024,
+				MaxSecretsPerUser:   100,
+				SecretExpiryEnabled: true,
+				DefaultTTL:          24 * time.Hour,
+				StorePath:           "",
 			},
 			Metrics: MetricsConfig{
-				CollectionInterval: 1 * time.Minute,
-				RetentionPeriod:    90 * 24 * time.Hour,
+				CollectionInterval: 10 * time.Second,
+				RetentionPeriod:    7 * 24 * time.Hour,
 				ExportFormat:       "prometheus",
+				StorageConfig:      map[string]string{},
 			},
 			Logging: LoggingConfig{
-				Format:          "json",
-				RetentionPeriod: 90 * 24 * time.Hour,
-				MaxSize:         100,
-				MaxBackups:      10,
+				Format:            "text",
+				RetentionPeriod:   7 * 24 * time.Hour,
+				MaxSize:           100,
+				MaxBackups:        3,
+				LogFilePath:       "./logs/service.log",
+				EnableCompression: true,
 			},
 			Account: AccountConfig{
 				MaxBatchSize:     100,
@@ -229,8 +296,15 @@ func DefaultConfig() *Config {
 				RecoveryWindow:   7 * 24 * time.Hour,
 				TEERequired:      true,
 			},
+			Wallet: WalletConfig{
+				Path:           "default_service_wallet.json",
+				Password:       "",
+				AddressVersion: 0x35,
+				Network:        "mainnet",
+			},
 		},
 		Security: SecurityConfig{
+			JWTSecret:       "very-insecure-default-jwt-secret-replace-me!",
 			TokenExpiration: 24 * time.Hour,
 			AllowedOrigins:  []string{"*"},
 		},

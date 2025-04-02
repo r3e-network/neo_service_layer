@@ -1,58 +1,99 @@
 package logging
 
 import (
+	"strings"
 	"time"
 )
 
-// Config holds the configuration for the Logging service
+// --- Log Level ---
+type LogLevel int
+
+const (
+	LogLevelDebug LogLevel = iota
+	LogLevelInfo
+	LogLevelWarn
+	LogLevelError
+)
+
+func (l LogLevel) String() string {
+	switch l {
+	case LogLevelDebug:
+		return "debug"
+	case LogLevelInfo:
+		return "info"
+	case LogLevelWarn:
+		return "warn"
+	case LogLevelError:
+		return "error"
+	default:
+		return "unknown"
+	}
+}
+
+func ParseLogLevel(levelStr string) LogLevel {
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		return LogLevelDebug
+	case "info":
+		return LogLevelInfo
+	case "warn":
+		return LogLevelWarn
+	case "error":
+		return LogLevelError
+	default:
+		return LogLevelInfo // Default level
+	}
+}
+
+// --- Other Models ---
+
+// Config represents the configuration for the logging service
 type Config struct {
 	LogLevel          string // Minimum log level to record (debug, info, warn, error)
 	EnableJSONLogs    bool   // Whether to format logs as JSON
-	LogFilePath       string // Path to the log file
+	LogFilePath       string // Path to the log file (enables FileStorage)
 	MaxSizeInMB       int    // Maximum size of log files before rotation
 	RetainedFiles     int    // Number of rotated log files to retain
 	EnableCompression bool   // Whether to compress rotated log files
+	// StorageBackend field removed, deduced from LogFilePath
+	// StorageConfig field removed, specific configs passed directly
 }
-
-// LogLevel represents the severity level of a log entry
-type LogLevel string
-
-const (
-	// DebugLevel represents debug log level
-	DebugLevel LogLevel = "debug"
-
-	// InfoLevel represents info log level
-	InfoLevel LogLevel = "info"
-
-	// WarnLevel represents warning log level
-	WarnLevel LogLevel = "warn"
-
-	// ErrorLevel represents error log level
-	ErrorLevel LogLevel = "error"
-)
 
 // LogEntry represents a single log record
 type LogEntry struct {
-	ID        string                 // Unique identifier
-	Timestamp time.Time              // When the log was created
-	Level     string                 // Log level (debug, info, warn, error)
-	Message   string                 // Log message
-	Service   string                 // Source service
-	Context   map[string]interface{} // Additional context
+	ID        string                 `json:"id"`
+	Timestamp time.Time              `json:"timestamp"`
+	Level     string                 `json:"level"` // Use string representation
+	Message   string                 `json:"message"`
+	Service   string                 `json:"service"`
+	Context   map[string]interface{} `json:"context"`
 }
 
-// LogQuery represents a query for logs
+// LogQuery represents criteria for querying logs
 type LogQuery struct {
-	Level     string    // Filter by log level
-	Service   string    // Filter by service
-	StartTime time.Time // Filter by start time
-	EndTime   time.Time // Filter by end time
-	Query     string    // Free text query
-	Limit     int       // Maximum number of results
-	Offset    int       // Offset for pagination
-	SortBy    string    // Field to sort by
-	SortOrder string    // Sort order (asc or desc)
+	Query     string    `json:"query"`     // Free text search query
+	Level     string    `json:"level"`     // Filter by log level
+	Service   string    `json:"service"`   // Filter by service name
+	StartTime time.Time `json:"startTime"` // Start of time range
+	EndTime   time.Time `json:"endTime"`   // End of time range
+	Limit     int       `json:"limit"`     // Max number of results
+	Offset    int       `json:"offset"`    // Offset for pagination
+	SortBy    string    `json:"sortBy"`    // Field to sort by (e.g., "timestamp")
+	SortOrder string    `json:"sortOrder"` // "asc" or "desc"
 }
+
+// File rotation and storage configuration is primarily handled by Config struct now.
+
+// Formatter configuration (implicitly handled by zap/logrus based on Config.EnableJSONLogs)
+
+// Exporter configuration (to be added if external exporting is implemented)
+/*
+type ExporterConfig struct {
+	Type    string // e.g., "elasticsearch", "loki", "stdout"
+	Address string
+	// Other specific configs...
+}
+*/
 
 // LogStats represents statistics about logs
 type LogStats struct {

@@ -3,70 +3,55 @@ package gasbank
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/will/neo_service_layer/internal/services/gasbank/models"
 )
 
-// IService defines the interface for the GasBank service
-type IService interface {
-	// Start starts the service
+// Service defines the interface for the GasBank service.
+type Service interface {
+	// Start starts the service background tasks (monitoring, etc.).
 	Start(ctx context.Context) error
-
-	// Stop stops the service
+	// Stop stops the service background tasks.
 	Stop(ctx context.Context) error
 
-	// GetAllocation gets the current gas allocation for a user
-	GetAllocation(ctx context.Context, userAddress util.Uint160) (*models.Allocation, error)
+	// --- Persistent User Balances ---
 
-	// RequestAllocation requests a new gas allocation for a user
-	RequestAllocation(ctx context.Context, userAddress util.Uint160, amount *big.Int) (*models.Allocation, error)
+	// GetUserBalance retrieves the current GAS balance for a user.
+	GetUserBalance(ctx context.Context, userAddress util.Uint160) (*models.UserBalance, error)
+	// RecordDeposit handles recording a detected user deposit.
+	RecordDeposit(ctx context.Context, userAddress util.Uint160, txHash util.Uint256, amount *big.Int) error
+	// InitiateWithdrawal starts the process for a user to withdraw GAS.
+	InitiateWithdrawal(ctx context.Context, userAddress util.Uint160, amount *big.Int) (string, error)
+	// GetWithdrawalStatus checks the status of a withdrawal request.
+	GetWithdrawalStatus(ctx context.Context, userAddress util.Uint160, requestID string) (string, error)
 
-	// ReleaseAllocation releases a user's gas allocation
-	ReleaseAllocation(ctx context.Context, userAddress util.Uint160) error
+	// --- Fee Payment Sponsorship ---
 
-	// AllocateGas allocates gas to a user
-	AllocateGas(ctx context.Context, userAddress util.Uint160, amount *big.Int) (*models.Allocation, error)
+	// RequestTransactionFeeSponsorship checks if GasBank can sponsor the fee for a transaction.
+	RequestTransactionFeeSponsorship(ctx context.Context, userAddress util.Uint160, txDetails TransactionDetails) (*big.Int, error)
+	// ConfirmFeePayment confirms a sponsored transaction was successful and deducts the fee.
+	ConfirmFeePayment(ctx context.Context, userAddress util.Uint160, txHash util.Uint256, actualFee *big.Int) error
+	// CancelFeeSponsorship releases locked funds if a sponsored transaction fails.
+	CancelFeeSponsorship(ctx context.Context, userAddress util.Uint160, txHash util.Uint256) error
+	// SetFeePolicy allows a user to define their fee payment policy.
+	SetFeePolicy(ctx context.Context, userAddress util.Uint160, policy models.FeePolicy) error
+	// GetFeePolicy retrieves a user's current fee payment policy.
+	GetFeePolicy(ctx context.Context, userAddress util.Uint160) (*models.FeePolicy, error)
 
-	// ReleaseGas releases gas from a user
-	ReleaseGas(ctx context.Context, userAddress util.Uint160) error
+	// --- Gas Claiming for NEO-only users ---
+
+	// SubmitGasClaim allows a user to submit their pre-signed claim transaction.
+	SubmitGasClaim(ctx context.Context, userAddress util.Uint160, signedTxBytes []byte) (string, error)
+	// GetGasClaimStatus checks the status of a submitted claim.
+	GetGasClaimStatus(ctx context.Context, userAddress util.Uint160, requestID string) (*models.GasClaim, error)
 }
 
-// Allocation represents a gas allocation
-type Allocation struct {
-	// ID is the unique identifier for this allocation
-	ID string
-
-	// UserAddress is the address of the user who owns this allocation
-	UserAddress util.Uint160
-
-	// Amount is the total amount of gas allocated
-	Amount *big.Int
-
-	// Used is the amount of gas used so far
-	Used *big.Int
-
-	// ExpiresAt is when this allocation expires
-	ExpiresAt time.Time
-
-	// Status is the current status of the allocation
-	Status string
-}
-
-// RemainingGas returns the amount of gas remaining in the allocation
-func (a *Allocation) RemainingGas() *big.Int {
-	if a.Amount == nil || a.Used == nil {
-		return big.NewInt(0)
-	}
-	remaining := new(big.Int).Sub(a.Amount, a.Used)
-	if remaining.Sign() < 0 {
-		return big.NewInt(0)
-	}
-	return remaining
-}
-
-// IsExpired returns true if the allocation has expired
-func (a *Allocation) IsExpired() bool {
-	return time.Now().After(a.ExpiresAt)
+// TransactionDetails provides necessary info about a tx needing fee sponsorship.
+type TransactionDetails struct {
+	Signers         []util.Uint160 // Who signed the tx (primary signer is usually userAddress)
+	CalledContracts []util.Uint160 // Contracts invoked by the transaction script
+	NetworkFee      *big.Int       // Estimated/Max network fee
+	SystemFee       *big.Int       // Estimated/Max system fee
+	// Potentially add Tx []byte if needed for deeper inspection
 }

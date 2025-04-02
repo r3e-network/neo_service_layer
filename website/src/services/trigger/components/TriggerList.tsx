@@ -75,13 +75,13 @@ export default function TriggerList({
 
   const LoadingSkeleton = () => (
     <TableRow>
-      <TableCell><CircularProgress size={20} /></TableCell>
-      <TableCell><CircularProgress size={20} /></TableCell>
-      <TableCell><CircularProgress size={20} /></TableCell>
-      <TableCell><CircularProgress size={20} /></TableCell>
-      <TableCell><CircularProgress size={20} /></TableCell>
-      <TableCell><CircularProgress size={20} /></TableCell>
-      <TableCell><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
+      <TableCell sx={{ gridColumn: 'span 1' }}><CircularProgress size={20} /></TableCell>
     </TableRow>
   );
 
@@ -93,9 +93,7 @@ export default function TriggerList({
       <TableRow>
         <TableCell sx={{ 
           padding: 0, 
-          '&': { 
-            gridColumn: 'span 7 / span 7' 
-          }
+          gridColumn: 'span 7'
         }}>
           <Collapse in={expandedRow === trigger.id} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 1 }}>
@@ -105,32 +103,32 @@ export default function TriggerList({
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Start Time</TableCell>
-                    <TableCell>End Time</TableCell>
-                    <TableCell>Duration</TableCell>
-                    <TableCell>Result</TableCell>
+                    <TableCell sx={{ gridColumn: 'span 1' }}>Status</TableCell>
+                    <TableCell sx={{ gridColumn: 'span 1' }}>Start Time</TableCell>
+                    <TableCell sx={{ gridColumn: 'span 1' }}>End Time</TableCell>
+                    <TableCell sx={{ gridColumn: 'span 1' }}>Duration</TableCell>
+                    <TableCell sx={{ gridColumn: 'span 1' }}>Result</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {triggerExecutions.length > 0 ? (
                     triggerExecutions.map((execution) => (
                       <TableRow key={execution.id}>
-                        <TableCell>
+                        <TableCell sx={{ gridColumn: 'span 1' }}>
                           <Chip
                             label={execution.status}
                             size="small"
                             color={getStatusColor(execution.status) as any}
                           />
                         </TableCell>
-                        <TableCell>{new Date(execution.startTime).toLocaleString()}</TableCell>
-                        <TableCell>{execution.endTime ? new Date(execution.endTime).toLocaleString() : '-'}</TableCell>
-                        <TableCell>
+                        <TableCell sx={{ gridColumn: 'span 1' }}>{new Date(execution.startTime).toLocaleString()}</TableCell>
+                        <TableCell sx={{ gridColumn: 'span 1' }}>{execution.endTime ? new Date(execution.endTime).toLocaleString() : '-'}</TableCell>
+                        <TableCell sx={{ gridColumn: 'span 1' }}>
                           {execution.endTime && execution.startTime
                             ? formatDuration(execution.endTime - execution.startTime)
                             : '-'}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ gridColumn: 'span 1' }}>
                           <Tooltip title={execution.result ? JSON.stringify(execution.result) : ''}>
                             <Typography
                               variant="body2"
@@ -149,7 +147,7 @@ export default function TriggerList({
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} align="center">
+                      <TableCell sx={{ gridColumn: 'span 5', textAlign: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           No execution history available
                         </Typography>
@@ -171,13 +169,13 @@ export default function TriggerList({
         <Table size="medium">
           <TableHead>
             <TableRow>
-              <TableCell />
-              <TableCell>Name</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Last Execution</TableCell>
-              <TableCell>Success Rate</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell sx={{ gridColumn: 'span 1' }} />
+              <TableCell sx={{ gridColumn: 'span 1' }}>Name</TableCell>
+              <TableCell sx={{ gridColumn: 'span 1' }}>Type</TableCell>
+              <TableCell sx={{ gridColumn: 'span 1' }}>Status</TableCell>
+              <TableCell sx={{ gridColumn: 'span 1' }}>Last Execution</TableCell>
+              <TableCell sx={{ gridColumn: 'span 1' }}>Success Rate</TableCell>
+              <TableCell sx={{ gridColumn: 'span 1', textAlign: 'right' }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -190,10 +188,7 @@ export default function TriggerList({
                 <TableCell sx={{ 
                   padding: '16px', 
                   textAlign: 'center',
-                  '&': { 
-                    // This is a workaround to set colSpan in a type-safe way
-                    gridColumn: 'span 7 / span 7' 
-                  }
+                  gridColumn: 'span 7'
                 }}>
                   <Box sx={{ py: 3 }}>
                     <PowerSettingsNewIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
@@ -212,7 +207,7 @@ export default function TriggerList({
                 .map((trigger) => (
                   <React.Fragment key={trigger.id}>
                     <TableRow hover>
-                      <TableCell padding="none">
+                      <TableCell sx={{ gridColumn: 'span 1', padding: 'none' }}>
                         <IconButton
                           size="small"
                           onClick={() => handleExpandRow(trigger.id)}
@@ -224,13 +219,13 @@ export default function TriggerList({
                           )}
                         </IconButton>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ gridColumn: 'span 1' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <PowerSettingsNewIcon fontSize="small" />
                           {trigger.name}
                         </Box>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ gridColumn: 'span 1' }}>
                         <Chip
                           label={trigger.condition.type}
                           size="small"
@@ -238,24 +233,24 @@ export default function TriggerList({
                           variant="outlined"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ gridColumn: 'span 1' }}>
                         <Chip
                           label={trigger.status}
                           size="small"
                           color={getStatusColor(trigger.status) as any}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ gridColumn: 'span 1' }}>
                         {trigger.lastExecutedAt ? trigger.lastExecutedAt : 'Never'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ gridColumn: 'span 1' }}>
                         {trigger.executionCount > 0
                           ? formatPercentage(
                               ((trigger.executionCount - (trigger.failureCount || 0)) / trigger.executionCount)
                             )
                           : 'N/A'}
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell sx={{ gridColumn: 'span 1', textAlign: 'right' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                           <Tooltip title="Edit Trigger">
                             <IconButton size="small" onClick={() => onEdit(trigger)}>

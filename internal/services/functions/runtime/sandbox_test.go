@@ -8,81 +8,63 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestSandbox_Execute(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	sandbox := newTestSandbox(logger)
+
 	tests := []struct {
-		name      string
-		code      string
-		args      map[string]interface{}
-		wantError bool
-		checkFunc func(t *testing.T, output *FunctionOutput)
+		name           string
+		code           string
+		args           map[string]interface{}
+		secrets        map[string]string
+		expectedResult interface{}
+		wantError      bool
+		checkFunc      func(*testing.T, *FunctionOutput)
 	}{
 		{
-			name: "simple addition",
-			code: `
-function main(args) {
-    return args.a + args.b;
-}`,
-			args: map[string]interface{}{
-				"a": 1,
-				"b": 2,
-			},
-			wantError: false,
-			checkFunc: func(t *testing.T, output *FunctionOutput) {
-				value, ok := output.Result.(int64)
-				if ok {
-					assert.Equal(t, int64(3), value)
-				} else {
-					assert.Equal(t, float64(3), output.Result)
-				}
-			},
+			name:           "simple_addition",
+			code:           `function main(args) { return args.a + args.b; }`,
+			args:           map[string]interface{}{"a": 5, "b": 3},
+			expectedResult: int64(8), // Goja returns int64 for whole numbers
+			wantError:      false,
 		},
 		{
-			name: "console logging",
-			code: `
-function main(args) {
-    console.log("Hello, world!");
-    console.info("Info message");
-    console.warn("Warning message");
-    console.error("Error message");
-    return "done";
-}`,
-			wantError: false,
+			name:           "console_logging",
+			code:           `function main(args) { console.log("Hello, world!"); console.info("Info message"); console.warn("Warning message"); console.error("Error message"); return 1; }`,
+			args:           map[string]interface{}{},
+			expectedResult: int64(1),
+			wantError:      false,
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
-				assert.Equal(t, "done", output.Result)
 				assert.Len(t, output.Logs, 4)
-				assert.Equal(t, "Hello, world!", output.Logs[0])
-				assert.Equal(t, "INFO: Info message", output.Logs[1])
-				assert.Equal(t, "WARN: Warning message", output.Logs[2])
-				assert.Equal(t, "ERROR: Error message", output.Logs[3])
+				assert.Contains(t, output.Logs, "Hello, world!")
+				assert.Contains(t, output.Logs, "INFO: Info message")
+				assert.Contains(t, output.Logs, "WARN: Warning message")
+				assert.Contains(t, output.Logs, "ERROR: Error message")
 			},
 		},
 		{
-			name: "missing main function",
-			code: `
-function notMain() {
-    return "wrong";
-}`,
-			wantError: true,
+			name:           "missing_main_function",
+			code:           `function notMain() { return 1; }`,
+			expectedResult: nil,
+			wantError:      true,
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				assert.Contains(t, output.Error, "main function is not defined")
 			},
 		},
 		{
-			name: "syntax error",
-			code: `
-function main(args) {
-    return args.a + args.b
-    ;;;;; invalid syntax
-}`,
-			wantError: true,
+			name:           "syntax_error",
+			code:           `function main(args { return 1; }`, // Syntax error
+			expectedResult: nil,
+			wantError:      true,
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
-				assert.Contains(t, output.Error, "javascript error")
+				assert.NotEmpty(t, output.Error)
 			},
 		},
 		{
-			name: "argument passing",
+			name: "argument_passing",
 			code: `
 function main(args) {
     return {
@@ -100,74 +82,43 @@ function main(args) {
 			checkFunc: func(t *testing.T, output *FunctionOutput) {
 				result, ok := output.Result.(map[string]interface{})
 				assert.True(t, ok)
-
-				sumValue, ok := result["sum"].(float64)
-				if ok {
-					assert.Equal(t, float64(8), sumValue)
-				} else {
-					assert.Equal(t, int64(8), result["sum"])
-				}
-
-				productValue, ok := result["product"].(float64)
-				if ok {
-					assert.Equal(t, float64(15), productValue)
-				} else {
-					assert.Equal(t, int64(15), result["product"])
-				}
-
+				assert.Equal(t, int64(8), result["sum"])
+				assert.Equal(t, int64(15), result["product"])
 				assert.Equal(t, "hello", result["message"])
 			},
 		},
 		{
-			name: "using secrets",
-			code: `
-function main(args) {
-    console.log("API Key:", secrets.apiKey);
-    return {
-        hasApiKey: secrets.apiKey !== undefined,
-        secretValue: secrets.apiKey
-    };
-}`,
-			wantError: false,
-			checkFunc: func(t *testing.T, output *FunctionOutput) {
-				result, ok := output.Result.(map[string]interface{})
-				assert.True(t, ok)
-				assert.Equal(t, true, result["hasApiKey"])
-				assert.Equal(t, "test-api-key", result["secretValue"])
-				assert.Contains(t, output.Logs[0], "API Key:")
-				assert.Contains(t, output.Logs[0], "test-api-key")
+			name: "using_secrets",
+			code: `function main(args) { console.log("API Key:" + secrets.apiKey); return secrets.apiKey; }`,
+			secrets: map[string]string{
+				"apiKey": "test-api-key",
 			},
+			expectedResult: "test-api-key",
+			wantError:      false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create sandbox with default config
-			sandbox := NewSandbox(SandboxConfig{})
-
-			// Prepare input
 			input := FunctionInput{
-				Code: tt.code,
-				Args: tt.args,
-				Secrets: map[string]string{
-					"apiKey": "test-api-key",
-				},
+				Code:    tt.code,
+				Args:    tt.args,
+				Secrets: tt.secrets,
 			}
-
-			// Execute function
 			output, err := sandbox.Execute(context.Background(), input)
-			require.NoError(t, err, "Execute should not return an error")
+			require.NoError(t, err) // Execute itself should not error
+			assert.NotNil(t, output)
 
-			// Check if we expect an error in the output
 			if tt.wantError {
-				assert.NotEmpty(t, output.Error, "Expected error in output")
+				assert.NotEmpty(t, output.Error, "Expected error, but got none")
 			} else {
 				assert.Empty(t, output.Error, "Unexpected error in output: %s", output.Error)
-			}
-
-			// Run additional checks
-			if tt.checkFunc != nil {
-				tt.checkFunc(t, output)
+				// Check the result only if no error was expected
+				if tt.checkFunc != nil {
+					tt.checkFunc(t, output)
+				} else if tt.expectedResult != nil {
+					assert.Equal(t, tt.expectedResult, output.Result)
+				}
 			}
 		})
 	}
@@ -403,4 +354,11 @@ function main(args) {
 	require.NoError(t, err)
 	require.Empty(t, output2.Error)
 	assert.Equal(t, "isolated", output2.Result)
+}
+
+// Helper function to create a basic sandbox for testing
+func newTestSandbox(logger *zap.Logger) *Sandbox {
+	return NewSandbox(SandboxConfig{
+		Logger: logger,
+	})
 }

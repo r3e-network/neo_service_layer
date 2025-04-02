@@ -3,189 +3,163 @@ package logging
 import (
 	"context"
 	"fmt"
-	"strings"
-	"sync"
 	"time"
-)
 
-// logStore manages log storage and retrieval
-type logStore struct {
-	entries      []LogEntry
-	indexByLevel map[string][]int
-	indexByTime  []int
-	mutex        sync.RWMutex
-}
+	log "github.com/sirupsen/logrus"
+	"github.com/will/neo_service_layer/internal/services/logging/models"
+)
 
 // Service implements the Logging service
 type Service struct {
-	config   *Config
-	logStore *logStore
+	config  *models.Config
+	storage LogStorage
+	logger  *log.Logger
 }
 
 // NewService creates a new Logging service
-func NewService(config *Config) (*Service, error) {
-	// Validate log level
-	level := strings.ToLower(config.LogLevel)
-	if level != "debug" && level != "info" && level != "warn" && level != "error" {
-		return nil, fmt.Errorf("invalid log level: %s", config.LogLevel)
+func NewService(config *models.Config) (*Service, error) {
+	logger := log.New()
+	logLevel, err := log.ParseLevel(config.LogLevel)
+	if err != nil {
+		logger.Warnf("Invalid log level '%s' in config, using default 'info'", config.LogLevel)
+		logLevel = log.InfoLevel
+	}
+	logger.SetLevel(logLevel)
+
+	if config.EnableJSONLogs {
+		logger.SetFormatter(&log.JSONFormatter{})
+	} else {
+		logger.SetFormatter(&log.TextFormatter{FullTimestamp: true})
 	}
 
-	store := &logStore{
-		entries:      make([]LogEntry, 0),
-		indexByLevel: make(map[string][]int),
-		indexByTime:  make([]int, 0),
+	// --- Initialize Storage ---
+	var storage LogStorage
+	var storageErr error
+
+	if config.LogFilePath != "" {
+		logger.Infof("Initializing FileStorage at %s", config.LogFilePath)
+		storage, storageErr = NewFileStorage(config)
+		if storageErr != nil {
+			logger.Errorf("Failed to initialize FileStorage: %v. Falling back to InMemoryStorage.", storageErr)
+			maxEntries := 10000
+			storage = NewInMemoryStorage(maxEntries)
+			logger.Infof("Initialized logging service with InMemoryStorage (maxEntries: %d) as fallback.", maxEntries)
+			storageErr = nil
+		} else {
+			logger.Info("Initialized logging service with FileStorage.")
+		}
+	} else {
+		maxEntries := 10000
+		storage = NewInMemoryStorage(maxEntries)
+		logger.Infof("Initialized logging service with InMemoryStorage (maxEntries: %d)", maxEntries)
 	}
 
-	// Initialize indices
-	store.indexByLevel["debug"] = make([]int, 0)
-	store.indexByLevel["info"] = make([]int, 0)
-	store.indexByLevel["warn"] = make([]int, 0)
-	store.indexByLevel["error"] = make([]int, 0)
+	if storageErr != nil {
+		return nil, fmt.Errorf("failed to initialize log storage: %w", storageErr)
+	}
 
 	return &Service{
-		config:   config,
-		logStore: store,
+		config:  config,
+		storage: storage,
+		logger:  logger,
 	}, nil
 }
 
 // LogDebug logs a debug message
 func (s *Service) LogDebug(message string, context map[string]interface{}) error {
-	if s.shouldLog("debug") {
-		return s.log("debug", message, context)
-	}
-	return nil
+	return s.logInternal(models.LogLevelDebug, message, context)
 }
 
 // LogInfo logs an info message
 func (s *Service) LogInfo(message string, context map[string]interface{}) error {
-	if s.shouldLog("info") {
-		return s.log("info", message, context)
-	}
-	return nil
+	return s.logInternal(models.LogLevelInfo, message, context)
 }
 
 // LogWarning logs a warning message
 func (s *Service) LogWarning(message string, context map[string]interface{}) error {
-	if s.shouldLog("warn") {
-		return s.log("warn", message, context)
-	}
-	return nil
+	return s.logInternal(models.LogLevelWarn, message, context)
 }
 
 // LogError logs an error message
 func (s *Service) LogError(message string, context map[string]interface{}) error {
-	if s.shouldLog("error") {
-		return s.log("error", message, context)
-	}
-	return nil
+	return s.logInternal(models.LogLevelError, message, context)
 }
 
 // QueryLogs retrieves logs matching a query
-func (s *Service) QueryLogs(ctx context.Context, query string, startTime time.Time, endTime time.Time, limit int) ([]LogEntry, error) {
-	s.logStore.mutex.RLock()
-	defer s.logStore.mutex.RUnlock()
-
-	// For the mock implementation, we'll do a simple search
-	// In a real implementation, we'd parse the query and use the indices
-	result := make([]LogEntry, 0)
-	count := 0
-
-	for _, entry := range s.logStore.entries {
-		if entry.Timestamp.After(startTime) && entry.Timestamp.Before(endTime) {
-			// Simple string matching for the mock
-			if strings.Contains(query, fmt.Sprintf("service:%s", entry.Service)) {
-				result = append(result, entry)
-				count++
-				if count >= limit {
-					break
-				}
-			}
-		}
+func (s *Service) QueryLogs(ctx context.Context, query models.LogQuery) ([]models.LogEntry, error) {
+	results, err := s.storage.Query(query)
+	if err != nil {
+		s.logger.Errorf("Error querying logs: %v", err)
+		return nil, fmt.Errorf("failed to query logs")
 	}
-
-	// For testing, ensure we always return at least one result
-	if len(result) == 0 {
-		// Extract the service name from the query
-		serviceName := "unknown"
-		queryParts := strings.Split(query, ":")
-		if len(queryParts) >= 2 {
-			serviceName = queryParts[1]
-			if idx := strings.Index(serviceName, " "); idx > 0 {
-				serviceName = serviceName[:idx]
-			}
-		}
-
-		// Create a mock log entry
-		mockEntry := LogEntry{
-			ID:        fmt.Sprintf("mock-log-%d", time.Now().UnixNano()),
-			Timestamp: time.Now(),
-			Level:     "info",
-			Message:   "Test message",
-			Service:   serviceName,
-			Context: map[string]interface{}{
-				"service": serviceName,
-				"mock":    true,
-			},
-		}
-		result = append(result, mockEntry)
-	}
-
-	return result, nil
+	return results, nil
 }
 
 // Start starts the Logging service
 func (s *Service) Start() error {
-	// In a real implementation, we'd set up log rotation, etc.
+	s.logger.Info("Starting Logging service...")
+	s.logger.Info("Logging service started.")
 	return nil
 }
 
 // Shutdown stops the Logging service
 func (s *Service) Shutdown(ctx context.Context) error {
-	// In a real implementation, we'd flush logs, close files, etc.
+	s.logger.Info("Shutting down Logging service...")
+	if err := s.storage.Close(); err != nil {
+		s.logger.Errorf("Error closing log storage: %v", err)
+	}
+	s.logger.Info("Logging service shut down.")
 	return nil
 }
 
-// shouldLog checks if a log level should be recorded
-func (s *Service) shouldLog(level string) bool {
-	configLevel := strings.ToLower(s.config.LogLevel)
-
-	switch configLevel {
-	case "debug":
-		return true
-	case "info":
-		return level != "debug"
-	case "warn":
-		return level != "debug" && level != "info"
-	case "error":
-		return level == "error"
-	default:
-		return false
+// logInternal creates and stores a log entry if level is sufficient
+func (s *Service) logInternal(level models.LogLevel, message string, context map[string]interface{}) error {
+	configLevel := models.ParseLogLevel(s.config.LogLevel)
+	if level < configLevel {
+		return nil
 	}
-}
 
-// log creates a new log entry
-func (s *Service) log(level string, message string, context map[string]interface{}) error {
-	entry := LogEntry{
+	entry := models.LogEntry{
 		ID:        fmt.Sprintf("log-%d", time.Now().UnixNano()),
 		Timestamp: time.Now(),
-		Level:     level,
+		Level:     level.String(),
 		Message:   message,
 		Service:   getServiceFromContext(context),
 		Context:   context,
 	}
 
-	s.logStore.mutex.Lock()
-	defer s.logStore.mutex.Unlock()
+	s.logViaLogger(entry)
 
-	// Add to entries
-	index := len(s.logStore.entries)
-	s.logStore.entries = append(s.logStore.entries, entry)
-
-	// Update indices
-	s.logStore.indexByLevel[level] = append(s.logStore.indexByLevel[level], index)
-	s.logStore.indexByTime = append(s.logStore.indexByTime, index)
+	if err := s.storage.Store(entry); err != nil {
+		s.logger.Errorf("Failed to store log entry: %v", err)
+		return fmt.Errorf("failed to store log entry: %w", err)
+	}
 
 	return nil
+}
+
+// logViaLogger logs the entry using the configured service logger (logrus)
+func (s *Service) logViaLogger(entry models.LogEntry) {
+	fields := log.Fields{}
+	for k, v := range entry.Context {
+		fields[k] = v
+	}
+	fields["service"] = entry.Service
+
+	logEntry := s.logger.WithFields(fields)
+
+	switch models.ParseLogLevel(entry.Level) {
+	case models.LogLevelDebug:
+		logEntry.Debug(entry.Message)
+	case models.LogLevelInfo:
+		logEntry.Info(entry.Message)
+	case models.LogLevelWarn:
+		logEntry.Warn(entry.Message)
+	case models.LogLevelError:
+		logEntry.Error(entry.Message)
+	default:
+		logEntry.Info(entry.Message)
+	}
 }
 
 // getServiceFromContext extracts the service name from context
@@ -206,3 +180,16 @@ func getServiceFromContext(context map[string]interface{}) string {
 
 	return serviceStr
 }
+
+// --- LogLevel types/functions REMOVED (Assume they exist in models.go) ---
+/*
+type LogLevel int
+const (
+	LogLevelDebug LogLevel = iota
+	LogLevelInfo
+	LogLevelWarn
+	LogLevelError
+)
+func (l LogLevel) String() string { ... }
+func ParseLogLevel(levelStr string) LogLevel { ... }
+*/

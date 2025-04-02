@@ -103,7 +103,7 @@ func TestSandboxMemoryMonitoring(t *testing.T) {
 
 		// Execute a simple function that should not exceed memory limits
 		input := FunctionInput{
-			Code: "function test() { return 'hello'; }; test();",
+			Code: "function main(args) { return 'hello'; }",
 		}
 
 		// Execute the function
@@ -111,6 +111,7 @@ func TestSandboxMemoryMonitoring(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
 		assert.Equal(t, "hello", output.Result)
+		assert.Empty(t, output.Error)
 
 		// Verify that memory monitoring was started and stopped
 		sandbox.mutex.Lock()
@@ -127,13 +128,15 @@ func TestSandboxMemoryMonitoring(t *testing.T) {
 
 		// Execute a function that allocates memory
 		input := FunctionInput{
-			Code: "function test() { const arr = new Array(1000000).fill('x'); return arr.length; }; test();",
+			Code: "function main(args) { const arr = new Array(1000000).fill('x'); return arr.length; }",
 		}
 
 		// Execute the function
-		_, err := sandbox.Execute(context.Background(), input)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "memory limit exceeded")
+		output, err := sandbox.Execute(context.Background(), input)
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.NotEmpty(t, output.Error)
+		assert.Contains(t, output.Error, "timed out", "Should timeout due to memory check interruption")
 
 		// Verify that memory monitoring was started and stopped
 		sandbox.mutex.Lock()

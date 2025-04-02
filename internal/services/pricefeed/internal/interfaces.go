@@ -8,6 +8,14 @@ import (
 	"github.com/will/neo_service_layer/internal/services/pricefeed/models"
 )
 
+// PriceProvider defines the interface for external price data sources
+type PriceProvider interface {
+	// GetPrice fetches the current price for a single asset from the provider
+	GetPrice(ctx context.Context, assetID string) (*models.Price, error) // Assuming providers can return models.Price directly or adapt
+	// Name returns the name of the provider (e.g., "binance", "coinbase")
+	Name() string
+}
+
 // PriceAggregator aggregates and manages price data
 type PriceAggregator interface {
 	// Start starts the aggregator
