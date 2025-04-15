@@ -7,10 +7,10 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { ClientConfig } from '../types/config';
-import { FunctionsService } from '../services/functions';
+import { functionservice } from '../services/functions';
 import { GasBankService } from '../services/gasbank';
 import { PriceFeedService } from '../services/pricefeed';
-import { SecretsService } from '../services/secrets';
+import { secretservice } from '../services/secrets';
 import { TriggerService } from '../services/trigger';
 import { TransactionService } from '../services/transaction';
 import { ApiError } from './errors';
@@ -29,10 +29,10 @@ export class NeoServiceLayer {
   } = {};
 
   // Services
-  public functions: FunctionsService;
+  public functions: functionservice;
   public gasBank: GasBankService;
   public priceFeed: PriceFeedService;
-  public secrets: SecretsService;
+  public secrets: secretservice;
   public trigger: TriggerService;
   public transaction: TransactionService;
 
@@ -83,10 +83,10 @@ export class NeoServiceLayer {
     );
 
     // Initialize services
-    this.functions = new FunctionsService(this);
+    this.functions = new functionservice(this);
     this.gasBank = new GasBankService(this);
     this.priceFeed = new PriceFeedService(this);
-    this.secrets = new SecretsService(this);
+    this.secrets = new secretservice(this);
     this.trigger = new TriggerService(this);
     this.transaction = new TransactionService(this);
   }

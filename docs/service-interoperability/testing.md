@@ -19,7 +19,7 @@ These tests verify that functions can successfully use these services to perform
 
 The testing approach uses several mock service implementations that simulate the behavior of real services:
 
-1. **MockSecretsService**: For storing and retrieving sensitive information
+1. **Mocksecretservice**: For storing and retrieving sensitive information
 2. **MockPriceFeedService**: For getting token price data
 3. **MockTransactionService**: For creating, signing, and submitting transactions
 

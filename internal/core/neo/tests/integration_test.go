@@ -7,9 +7,9 @@ import (
 
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/nspcc-dev/neo-go/pkg/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/core/neo"
 )
 
 func TestIntegration(t *testing.T) {

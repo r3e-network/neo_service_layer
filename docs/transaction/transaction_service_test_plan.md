@@ -49,7 +49,7 @@ Integration tests focus on testing the interaction between the transaction servi
 #### 2.1 Sandbox Integration Tests
 
 - **Purpose**: Verify that the transaction service is properly integrated with the sandbox environment.
-- **Test File**: `internal/services/functions/runtime/sandbox_transaction_test.go`
+- **Test File**: `internal/functionservice/runtime/sandbox_transaction_test.go`
 - **Test Cases**:
   - Test that JavaScript functions can call transaction service methods
   - Test that transaction service methods return the expected results
@@ -59,7 +59,7 @@ Integration tests focus on testing the interaction between the transaction servi
 #### 2.2 Memory Monitoring Tests
 
 - **Purpose**: Verify that the memory monitoring functionality works correctly and doesn't cause race conditions or deadlocks.
-- **Test File**: `internal/services/functions/runtime/sandbox_memory_test.go`
+- **Test File**: `internal/functionservice/runtime/sandbox_memory_test.go`
 - **Test Cases**:
   - Test that memory monitoring starts and stops correctly
   - Test that memory monitoring detects when memory limits are exceeded
@@ -73,7 +73,7 @@ End-to-end tests focus on testing the entire system from the user's perspective.
 #### 3.1 JavaScript Function Tests
 
 - **Purpose**: Verify that JavaScript functions can use the transaction service to create, sign, send, and manage transactions.
-- **Test File**: `internal/services/functions/runtime/sandbox_transaction_test.go`
+- **Test File**: `internal/functionservice/runtime/sandbox_transaction_test.go`
 - **Test Cases**:
   - Test a complete transaction lifecycle from JavaScript
   - Test error handling from JavaScript
@@ -133,7 +133,7 @@ go test -v ./internal/services/transaction/...
 ### Running Integration Tests
 
 ```bash
-go test -v ./internal/services/functions/runtime/...
+go test -v ./internal/functionservice/runtime/...
 ```
 
 ### Running All Tests

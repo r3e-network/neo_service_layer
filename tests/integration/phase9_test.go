@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/nspcc-dev/neo-go/pkg/util"
+	corened "github.com/r3e-network/neo_service_layer/internal/core/neo"
+	gasbankmodels "github.com/r3e-network/neo_service_layer/internal/gasbankservice/models"
+	pricefeedmodels "github.com/r3e-network/neo_service_layer/internal/pricefeedservice/models"
+	"github.com/r3e-network/neo_service_layer/internal/services/automation"
+	triggermodels "github.com/r3e-network/neo_service_layer/internal/triggerservice/models"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	corened "github.com/will/neo_service_layer/internal/core/neo"
-	"github.com/will/neo_service_layer/internal/services/automation"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	gasbankmodels "github.com/will/neo_service_layer/internal/services/gasbank/models"
-	pricefeedmodels "github.com/will/neo_service_layer/internal/services/pricefeed/models"
-	triggermodels "github.com/will/neo_service_layer/internal/services/trigger/models"
 )
 
 // mockTriggerService is a mock implementation of the TriggerService for testing
@@ -74,10 +73,10 @@ func (m *mockTriggerService) ExecuteTrigger(ctx context.Context, userAddress uti
 	}, nil
 }
 
-// mockFunctionsService is a mock implementation of the FunctionsService for testing
-type mockFunctionsService struct{}
+// mockfunctionservice is a mock implementation of the functionservice for testing
+type mockfunctionservice struct{}
 
-func (m *mockFunctionsService) ExecuteFunction(ctx context.Context, functionID string, params map[string]interface{}) (interface{}, error) {
+func (m *mockfunctionservice) ExecuteFunction(ctx context.Context, functionID string, params map[string]interface{}) (interface{}, error) {
 	// For testing, return a simple result
 	return map[string]interface{}{
 		"executed":    true,
@@ -86,23 +85,23 @@ func (m *mockFunctionsService) ExecuteFunction(ctx context.Context, functionID s
 }
 
 // Additional methods to satisfy the functions.Service interface
-func (m *mockFunctionsService) CreateFunction(ctx context.Context, function *functions.Function) (*functions.Function, error) {
+func (m *mockfunctionservice) CreateFunction(ctx context.Context, function *functions.Function) (*functions.Function, error) {
 	return function, nil
 }
 
-func (m *mockFunctionsService) GetFunction(ctx context.Context, functionID string) (*functions.Function, error) {
+func (m *mockfunctionservice) GetFunction(ctx context.Context, functionID string) (*functions.Function, error) {
 	return &functions.Function{ID: functionID}, nil
 }
 
-func (m *mockFunctionsService) UpdateFunction(ctx context.Context, function *functions.Function) (*functions.Function, error) {
+func (m *mockfunctionservice) UpdateFunction(ctx context.Context, function *functions.Function) (*functions.Function, error) {
 	return function, nil
 }
 
-func (m *mockFunctionsService) DeleteFunction(ctx context.Context, functionID string) error {
+func (m *mockfunctionservice) DeleteFunction(ctx context.Context, functionID string) error {
 	return nil
 }
 
-func (m *mockFunctionsService) ListFunctions(ctx context.Context, userID string) ([]*functions.Function, error) {
+func (m *mockfunctionservice) ListFunctions(ctx context.Context, userID string) ([]*functions.Function, error) {
 	return []*functions.Function{}, nil
 }
 

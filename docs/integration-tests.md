@@ -131,7 +131,7 @@ functionsConfig := &functions.Config{
     EnableFileIO:        false,
     DefaultRuntime:      "javascript",
 }
-functionsService, err := functions.NewService(functionsConfig)
+functionservice, err := functions.NewService(functionsConfig)
 ```
 
 ### Test Assertions

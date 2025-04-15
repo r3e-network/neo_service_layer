@@ -21,8 +21,8 @@ The API service provides a RESTful interface for external applications to intera
 - Metrics and logging for telemetry
 
 **Documentation:**
-- [API Service README](/internal/services/api/README.md)
-- [API Models](/internal/services/api/models.go)
+- [API Service README](/internal/apiservice/README.md)
+- [API Models](/internal/apiservice/models.go)
 
 ### 2. Metrics Service
 
@@ -42,10 +42,10 @@ The Metrics service provides monitoring, data collection, and reporting capabili
 - Alerting system
 
 **Documentation:**
-- [Metrics Service README](/internal/services/metrics/README.md)
-- [Metric Models](/internal/services/metrics/models.go)
-- [Metric Collector](/internal/services/metrics/collector.go)
-- [Metric Exporter](/internal/services/metrics/exporter.go)
+- [Metrics Service README](/internal/metricsservice/README.md)
+- [Metric Models](/internal/metricsservice/models.go)
+- [Metric Collector](/internal/metricsservice/collector.go)
+- [Metric Exporter](/internal/metricsservice/exporter.go)
 
 ### 3. Logging Service
 
@@ -65,11 +65,11 @@ The Logging service provides centralized logging, log management, and analysis c
 - Optional external log systems
 
 **Documentation:**
-- [Logging Service README](/internal/services/logging/README.md)
-- [Log Models](/internal/services/logging/models.go)
-- [Log Formatter](/internal/services/logging/formatter.go)
-- [Log Exporter](/internal/services/logging/exporter.go)
-- [Log Storage](/internal/services/logging/storage.go)
+- [Logging Service README](/internal/loggingservice/README.md)
+- [Log Models](/internal/loggingservice/models.go)
+- [Log Formatter](/internal/loggingservice/formatter.go)
+- [Log Exporter](/internal/loggingservice/exporter.go)
+- [Log Storage](/internal/loggingservice/storage.go)
 
 ## Integration Tests
 

@@ -8,8 +8,8 @@ import (
 	"github.com/nspcc-dev/neo-go/pkg/crypto/keys"
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/nspcc-dev/neo-go/pkg/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/services/functions"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/services/functions"
 )
 
 func TestSimpleFunctions(t *testing.T) {
@@ -30,7 +30,7 @@ func TestSimpleFunctions(t *testing.T) {
 		EnableFileIO:        false,
 		DefaultRuntime:      "javascript",
 	}
-	functionsService, err := functions.NewService(functionsConfig)
+	functionservice, err := functions.NewService(functionsConfig)
 	require.NoError(t, err)
 
 	// Test creating a function
@@ -39,13 +39,13 @@ function main(args) {
     return { message: "Hello, World" };
 }
 `
-	function, err := functionsService.CreateFunction(ctx, userAddress, "test-function", "A test function", functionCode, functions.JavaScriptRuntime)
+	function, err := functionservice.CreateFunction(ctx, userAddress, "test-function", "A test function", functionCode, functions.JavaScriptRuntime)
 	require.NoError(t, err)
 	require.NotEmpty(t, function.ID)
 	require.Equal(t, "test-function", function.Name)
 
 	// Test getting function permissions
-	permissions, err := functionsService.GetPermissions(ctx, function.ID)
+	permissions, err := functionservice.GetPermissions(ctx, function.ID)
 	require.NoError(t, err)
 	require.Equal(t, function.ID, permissions.FunctionID)
 	require.Equal(t, userAddress, permissions.Owner)
@@ -53,11 +53,11 @@ function main(args) {
 
 	// Test updating permissions
 	permissions.Public = true
-	err = functionsService.UpdatePermissions(ctx, function.ID, userAddress, permissions)
+	err = functionservice.UpdatePermissions(ctx, function.ID, userAddress, permissions)
 	require.NoError(t, err)
 
 	// Verify permissions were updated
-	updatedPermissions, err := functionsService.GetPermissions(ctx, function.ID)
+	updatedPermissions, err := functionservice.GetPermissions(ctx, function.ID)
 	require.NoError(t, err)
 	require.True(t, updatedPermissions.Public)
 }

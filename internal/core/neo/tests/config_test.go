@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/will/neo_service_layer/internal/core/neo"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
 )
 
 // TestConfig provides test configuration

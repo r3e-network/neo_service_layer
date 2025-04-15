@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/r3e-network/neo_service_layer/internal/common/retry"
+	"github.com/r3e-network/neo_service_layer/internal/common/types"
 	"github.com/spf13/cobra"
-	"github.com/will/neo_service_layer/internal/common/retry"
-	"github.com/will/neo_service_layer/internal/common/types"
-	"github.com/will/neo_service_layer/internal/services/triggers"
 )
 
 // validateContractHash validates a contract hash string

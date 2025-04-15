@@ -8,16 +8,16 @@ import (
 
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/nspcc-dev/neo-go/pkg/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
+	"github.com/r3e-network/neo_service_layer/internal/services/api"
+	"github.com/r3e-network/neo_service_layer/internal/services/functions"
+	"github.com/r3e-network/neo_service_layer/internal/services/gasbank"
+	"github.com/r3e-network/neo_service_layer/internal/services/logging"
+	"github.com/r3e-network/neo_service_layer/internal/services/metrics"
+	"github.com/r3e-network/neo_service_layer/internal/services/pricefeed"
+	"github.com/r3e-network/neo_service_layer/internal/services/secrets"
+	"github.com/r3e-network/neo_service_layer/internal/services/trigger"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/core/neo"
-	"github.com/will/neo_service_layer/internal/services/api"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	"github.com/will/neo_service_layer/internal/services/gasbank"
-	"github.com/will/neo_service_layer/internal/services/logging"
-	"github.com/will/neo_service_layer/internal/services/metrics"
-	"github.com/will/neo_service_layer/internal/services/pricefeed"
-	"github.com/will/neo_service_layer/internal/services/secrets"
-	"github.com/will/neo_service_layer/internal/services/trigger"
 )
 
 func TestPhase4Integration(t *testing.T) {
@@ -61,13 +61,13 @@ func TestPhase4Integration(t *testing.T) {
 	functionsConfig := &functions.Config{
 		MaxExecutionTime: time.Second * 30,
 	}
-	functionsService, err := functions.NewService(functionsConfig)
+	functionservice, err := functions.NewService(functionsConfig)
 	require.NoError(t, err)
 
 	secretsConfig := &secrets.Config{
 		EncryptionKey: "test-encryption-key-12345",
 	}
-	secretsService, err := secrets.NewService(secretsConfig)
+	secretservice, err := secrets.NewService(secretsConfig)
 	require.NoError(t, err)
 
 	// Create dependencies struct
@@ -75,8 +75,8 @@ func TestPhase4Integration(t *testing.T) {
 		GasBankService:   gasBankService,
 		PriceFeedService: priceFeedService,
 		TriggerService:   triggerService,
-		FunctionsService: functionsService,
-		SecretsService:   secretsService,
+		functionservice:  functionservice,
+		secretservice:    secretservice,
 	}
 
 	// Initialize the API service but don't use it directly in tests since we're mocking

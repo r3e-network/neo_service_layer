@@ -8,12 +8,12 @@ import (
 
 	"github.com/nspcc-dev/neo-go/pkg/core/transaction"
 	"github.com/nspcc-dev/neo-go/pkg/util"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
+	"github.com/r3e-network/neo_service_layer/internal/services/gasbank"
+	"github.com/r3e-network/neo_service_layer/internal/services/pricefeed"
+	"github.com/r3e-network/neo_service_layer/internal/trigger"
+	"github.com/r3e-network/neo_service_layer/internal/triggerservice/models"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/core/neo"
-	"github.com/will/neo_service_layer/internal/services/gasbank"
-	"github.com/will/neo_service_layer/internal/services/pricefeed"
-	"github.com/will/neo_service_layer/internal/services/trigger"
-	"github.com/will/neo_service_layer/internal/services/trigger/models"
 )
 
 func TestPhase2Integration(t *testing.T) {

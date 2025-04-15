@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 
+	secrets_iface "github.com/r3e-network/neo_service_layer/internal/secretservice" // Import the interface definition
 	log "github.com/sirupsen/logrus"
-	secrets_iface "github.com/will/neo_service_layer/internal/services/secrets" // Import the interface definition
 )
 
 // Ensure DummyTEEProvider implements the interface

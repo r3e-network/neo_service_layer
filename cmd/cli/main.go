@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/will/neo_service_layer/cmd/cli/commands"
+	"github.com/r3e-network/neo_service_layer/cmd/cli/commands"
 )
 
 func main() {

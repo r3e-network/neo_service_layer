@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	metrics "github.com/r3e-network/neo_service_layer/internal/metricsservice"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/will/neo_service_layer/internal/services/metrics"
 )
 
 // TestMetricsServiceIntegration tests the basic functionality of the Metrics Service

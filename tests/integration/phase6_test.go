@@ -9,14 +9,14 @@ import (
 	"github.com/nspcc-dev/neo-go/pkg/crypto/keys"
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/nspcc-dev/neo-go/pkg/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/gasbankservice/models"
+	pricefeedmodels "github.com/r3e-network/neo_service_layer/internal/pricefeedservice/models"
+	"github.com/r3e-network/neo_service_layer/internal/services/api"
+	"github.com/r3e-network/neo_service_layer/internal/services/functions"
+	"github.com/r3e-network/neo_service_layer/internal/services/secrets"
+	triggermodels "github.com/r3e-network/neo_service_layer/internal/triggerservice/models"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/services/api"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	"github.com/will/neo_service_layer/internal/services/gasbank/models"
-	pricefeedmodels "github.com/will/neo_service_layer/internal/services/pricefeed/models"
-	"github.com/will/neo_service_layer/internal/services/secrets"
-	triggermodels "github.com/will/neo_service_layer/internal/services/trigger/models"
 )
 
 // MockGasBankService is a mock implementation of gasbank.Service
@@ -203,7 +203,7 @@ func TestAPIServiceIntegration(t *testing.T) {
 		EnableFileIO:        false,
 		DefaultRuntime:      "javascript",
 	}
-	functionsService, err := functions.NewService(functionsConfig)
+	functionservice, err := functions.NewService(functionsConfig)
 	require.NoError(t, err)
 
 	// Initialize Secrets service
@@ -214,7 +214,7 @@ func TestAPIServiceIntegration(t *testing.T) {
 		SecretExpiryEnabled: true,
 		DefaultTTL:          24 * time.Hour, // 24 hours
 	}
-	secretsService, err := secrets.NewService(secretsConfig)
+	secretservice, err := secrets.NewService(secretsConfig)
 	require.NoError(t, err)
 
 	// Create mock services
@@ -270,8 +270,8 @@ func TestAPIServiceIntegration(t *testing.T) {
 
 	// API dependencies struct with mock service implementations
 	apiDeps := &api.Dependencies{
-		FunctionsService: functionsService,
-		SecretsService:   secretsService,
+		functionservice:  functionservice,
+		secretservice:    secretservice,
 		GasBankService:   mockGasBankService,
 		PriceFeedService: mockPriceFeedService,
 		TriggerService:   mockTriggerService,
@@ -283,21 +283,21 @@ func TestAPIServiceIntegration(t *testing.T) {
 	require.NotNil(t, apiService)
 
 	// Create a function to test with
-	function, err := functionsService.CreateFunction(ctx, userAddress, "test-function", "A test function", "function main(args) { return 'hello'; }", functions.JavaScriptRuntime)
+	function, err := functionservice.CreateFunction(ctx, userAddress, "test-function", "A test function", "function main(args) { return 'hello'; }", functions.JavaScriptRuntime)
 	require.NoError(t, err)
 	require.NotEmpty(t, function.ID)
 
 	// Store a secret
-	err = secretsService.StoreSecret(ctx, userAddress, "api-key", "secret-value", nil)
+	err = secretservice.StoreSecret(ctx, userAddress, "api-key", "secret-value", nil)
 	require.NoError(t, err)
 
 	// List functions
-	functions, err := functionsService.ListFunctions(ctx, userAddress)
+	functions, err := functionservice.ListFunctions(ctx, userAddress)
 	require.NoError(t, err)
 	require.Len(t, functions, 1)
 
 	// List secrets
-	secrets, err := secretsService.ListSecrets(ctx, userAddress)
+	secrets, err := secretservice.ListSecrets(ctx, userAddress)
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 

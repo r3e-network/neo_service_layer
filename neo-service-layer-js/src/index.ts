@@ -19,10 +19,10 @@ export {
 } from './core/errors';
 
 // Export services
-export { FunctionsService } from './services/functions';
+export { functionservice } from './services/functions';
 export { GasBankService } from './services/gasbank';
 export { PriceFeedService } from './services/pricefeed';
-export { SecretsService } from './services/secrets';
+export { secretservice } from './services/secrets';
 export { TriggerService } from './services/trigger';
 export { TransactionService } from './services/transaction';
 

@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/will/neo_service_layer/internal/common/config"
-	"github.com/will/neo_service_layer/internal/common/logger"
+	"github.com/r3e-network/neo_service_layer/internal/common/config"
+	"github.com/r3e-network/neo_service_layer/internal/common/logger"
 )
 
 func main() {

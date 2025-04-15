@@ -24,7 +24,7 @@ import { PaginatedResponse } from '../../types/responses';
 /**
  * Functions Service for Neo Service Layer
  */
-export class FunctionsService {
+export class functionservice {
   private client: NeoServiceLayer;
   private basePath: string = '/api/v1/functions';
 

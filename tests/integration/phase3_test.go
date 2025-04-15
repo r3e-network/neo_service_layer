@@ -8,14 +8,14 @@ import (
 
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/nspcc-dev/neo-go/pkg/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
+	"github.com/r3e-network/neo_service_layer/internal/services/automation"
+	"github.com/r3e-network/neo_service_layer/internal/services/functions"
+	"github.com/r3e-network/neo_service_layer/internal/services/gasbank"
+	"github.com/r3e-network/neo_service_layer/internal/services/secrets"
+	"github.com/r3e-network/neo_service_layer/internal/services/trigger"
+	"github.com/r3e-network/neo_service_layer/internal/triggerservice/models"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/core/neo"
-	"github.com/will/neo_service_layer/internal/services/automation"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	"github.com/will/neo_service_layer/internal/services/gasbank"
-	"github.com/will/neo_service_layer/internal/services/secrets"
-	"github.com/will/neo_service_layer/internal/services/trigger"
-	"github.com/will/neo_service_layer/internal/services/trigger/models"
 )
 
 // TestPhase3Integration tests the integration between gasbank, trigger, functions,
@@ -54,7 +54,7 @@ func TestPhase3Integration(t *testing.T) {
 		// Use only fields that exist in the actual Config struct
 		MaxExecutionTime: time.Second * 30,
 	}
-	functionsService, err := functions.NewService(functionsConfig)
+	functionservice, err := functions.NewService(functionsConfig)
 	require.NoError(t, err)
 
 	// Initialize Secrets service with correct config structure
@@ -62,7 +62,7 @@ func TestPhase3Integration(t *testing.T) {
 		// Use only fields that exist in the actual Config struct
 		EncryptionKey: "test-encryption-key-12345",
 	}
-	secretsService, err := secrets.NewService(secretsConfig)
+	secretservice, err := secrets.NewService(secretsConfig)
 	require.NoError(t, err)
 
 	// Initialize Contract Automation service
@@ -84,17 +84,17 @@ func TestPhase3Integration(t *testing.T) {
 	functionCode := `function main(args) { return { success: true }; }`
 	functionRuntime := functions.JavaScriptRuntime // Using the correct runtime constant
 
-	createdFunction, err := functionsService.CreateFunction(ctx, userAddress, functionName, functionDescription, functionCode, functionRuntime)
+	createdFunction, err := functionservice.CreateFunction(ctx, userAddress, functionName, functionDescription, functionCode, functionRuntime)
 	require.NoError(t, err)
 	require.NotNil(t, createdFunction)
 
 	// 2. Test secret storage and retrieval
 	secretName := "test_api_key"
 	secretData := "test_secret_value"
-	err = secretsService.StoreSecret(ctx, userAddress, secretName, secretData, nil)
+	err = secretservice.StoreSecret(ctx, userAddress, secretName, secretData, nil)
 	require.NoError(t, err)
 
-	retrievedSecret, err := secretsService.GetSecret(ctx, userAddress, secretName)
+	retrievedSecret, err := secretservice.GetSecret(ctx, userAddress, secretName)
 	require.NoError(t, err)
 	require.NotNil(t, retrievedSecret)
 	require.Equal(t, secretData, retrievedSecret)

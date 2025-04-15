@@ -8,9 +8,8 @@ import (
 	"github.com/nspcc-dev/neo-go/pkg/crypto/keys"
 	"github.com/nspcc-dev/neo-go/pkg/util"
 	"github.com/nspcc-dev/neo-go/pkg/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/services/secrets"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	"github.com/will/neo_service_layer/internal/services/secrets"
 )
 
 func TestFunctionsAndSecretsIntegration(t *testing.T) {
@@ -31,7 +30,7 @@ func TestFunctionsAndSecretsIntegration(t *testing.T) {
 		EnableFileIO:        false,
 		DefaultRuntime:      "javascript",
 	}
-	functionsService, err := functions.NewService(functionsConfig)
+	functionservice, err := functions.NewService(functionsConfig)
 	require.NoError(t, err)
 
 	// Initialize Secrets service
@@ -42,7 +41,7 @@ func TestFunctionsAndSecretsIntegration(t *testing.T) {
 		SecretExpiryEnabled: true,
 		DefaultTTL:          24 * time.Hour, // 24 hours
 	}
-	secretsService, err := secrets.NewService(secretsConfig)
+	secretservice, err := secrets.NewService(secretsConfig)
 	require.NoError(t, err)
 
 	// Test creating a function
@@ -55,14 +54,14 @@ function main(args) {
     };
 }
 `
-	function, err := functionsService.CreateFunction(ctx, userAddress, "test-function", "A test function", functionCode, functions.JavaScriptRuntime)
+	function, err := functionservice.CreateFunction(ctx, userAddress, "test-function", "A test function", functionCode, functions.JavaScriptRuntime)
 	require.NoError(t, err)
 	require.NotEmpty(t, function.ID)
 	require.Equal(t, "test-function", function.Name)
 	require.Equal(t, userAddress, function.Owner)
 
 	// Test retrieving a function
-	retrievedFunction, err := functionsService.GetFunction(ctx, function.ID)
+	retrievedFunction, err := functionservice.GetFunction(ctx, function.ID)
 	require.NoError(t, err)
 	require.Equal(t, function.ID, retrievedFunction.ID)
 	require.Equal(t, function.Name, retrievedFunction.Name)
@@ -76,7 +75,7 @@ function main(args) {
 			"version":  "1.0.1",
 		},
 	}
-	updatedFunction, err := functionsService.UpdateFunction(ctx, function.ID, userAddress, updates)
+	updatedFunction, err := functionservice.UpdateFunction(ctx, function.ID, userAddress, updates)
 	require.NoError(t, err)
 	require.Equal(t, "Updated description", updatedFunction.Description)
 	require.Equal(t, "test", updatedFunction.Metadata["category"])
@@ -85,16 +84,16 @@ function main(args) {
 	// Test storing a secret
 	secretKey := "api-key"
 	secretValue := "test-api-key-12345"
-	err = secretsService.StoreSecret(ctx, userAddress, secretKey, secretValue, nil)
+	err = secretservice.StoreSecret(ctx, userAddress, secretKey, secretValue, nil)
 	require.NoError(t, err)
 
 	// Test retrieving a secret
-	retrievedSecret, err := secretsService.GetSecret(ctx, userAddress, secretKey)
+	retrievedSecret, err := secretservice.GetSecret(ctx, userAddress, secretKey)
 	require.NoError(t, err)
 	require.Equal(t, secretValue, retrievedSecret)
 
 	// Test listing secrets
-	secrets, err := secretsService.ListSecrets(ctx, userAddress)
+	secrets, err := secretservice.ListSecrets(ctx, userAddress)
 	require.NoError(t, err)
 	require.Contains(t, secrets, secretKey)
 
@@ -108,7 +107,7 @@ function main(args) {
 		Caller:  userAddress,
 		TraceID: "test-trace-id",
 	}
-	execution, err := functionsService.InvokeFunction(ctx, invocation)
+	execution, err := functionservice.InvokeFunction(ctx, invocation)
 	require.NoError(t, err)
 	require.NotEmpty(t, execution.ID)
 	require.Equal(t, function.ID, execution.FunctionID)
@@ -123,25 +122,25 @@ function main(args) {
 	require.NotNil(t, result["timestamp"])
 
 	// Test retrieving function execution
-	retrievedExecution, err := functionsService.GetExecution(ctx, execution.ID)
+	retrievedExecution, err := functionservice.GetExecution(ctx, execution.ID)
 	require.NoError(t, err)
 	require.Equal(t, execution.ID, retrievedExecution.ID)
 	require.Equal(t, execution.Status, retrievedExecution.Status)
 
 	// Test listing functions
-	functions, err := functionsService.ListFunctions(ctx, userAddress)
+	functions, err := functionservice.ListFunctions(ctx, userAddress)
 	require.NoError(t, err)
 	require.Len(t, functions, 1)
 	require.Equal(t, function.ID, functions[0].ID)
 
 	// Test listing executions
-	executions, err := functionsService.ListExecutions(ctx, function.ID, 10)
+	executions, err := functionservice.ListExecutions(ctx, function.ID, 10)
 	require.NoError(t, err)
 	require.Len(t, executions, 1)
 	require.Equal(t, execution.ID, executions[0].ID)
 
 	// Test function permissions
-	permissions, err := functionsService.GetPermissions(ctx, function.ID)
+	permissions, err := functionservice.GetPermissions(ctx, function.ID)
 	require.NoError(t, err)
 	require.Equal(t, function.ID, permissions.FunctionID)
 	require.Equal(t, userAddress, permissions.Owner)
@@ -149,29 +148,29 @@ function main(args) {
 
 	// Update permissions to make function public
 	permissions.Public = true
-	err = functionsService.UpdatePermissions(ctx, function.ID, userAddress, permissions)
+	err = functionservice.UpdatePermissions(ctx, function.ID, userAddress, permissions)
 	require.NoError(t, err)
 
 	// Verify permissions were updated
-	updatedPermissions, err := functionsService.GetPermissions(ctx, function.ID)
+	updatedPermissions, err := functionservice.GetPermissions(ctx, function.ID)
 	require.NoError(t, err)
 	require.True(t, updatedPermissions.Public)
 
 	// Test deleting a secret
-	err = secretsService.DeleteSecret(ctx, userAddress, secretKey)
+	err = secretservice.DeleteSecret(ctx, userAddress, secretKey)
 	require.NoError(t, err)
 
 	// Verify secret was deleted
-	_, err = secretsService.GetSecret(ctx, userAddress, secretKey)
+	_, err = secretservice.GetSecret(ctx, userAddress, secretKey)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 
 	// Test deleting a function
-	err = functionsService.DeleteFunction(ctx, function.ID, userAddress)
+	err = functionservice.DeleteFunction(ctx, function.ID, userAddress)
 	require.NoError(t, err)
 
 	// Verify function was deleted
-	_, err = functionsService.GetFunction(ctx, function.ID)
+	_, err = functionservice.GetFunction(ctx, function.ID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 }

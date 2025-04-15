@@ -13,7 +13,7 @@ import { PaginatedResponse } from '../../types/responses';
 /**
  * Secrets Service for Neo Service Layer
  */
-export class SecretsService {
+export class secretservice {
   private client: NeoServiceLayer;
   private basePath: string = '/api/v1/secrets';
 

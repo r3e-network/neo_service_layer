@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/will/neo_service_layer/internal/core/neo"
 )
 
 func TestNewClient(t *testing.T) {

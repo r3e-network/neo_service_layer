@@ -52,15 +52,15 @@ We've created comprehensive tests for the new services:
 
 ## Documentation
 
-- **Functions Service**: `/internal/services/functions/README.md`
-- **Secrets Service**: `/internal/services/secrets/README.md`
+- **Functions Service**: `/internal/functionservice/README.md`
+- **Secrets Service**: `/internal/secretservice/README.md`
 - **Integration Tests**: `/tests/integration/README.md`
 
 ## Testing
 
 Run the unit tests for the sandbox:
 ```
-go test -v ./internal/services/functions/runtime/...
+go test -v ./internal/functionservice/runtime/...
 ```
 
 Run the integration tests for the new services:

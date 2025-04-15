@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/r3e-network/neo_service_layer/internal/services/logging"
 	"github.com/stretchr/testify/assert"
-	"github.com/will/neo_service_layer/internal/services/logging"
 )
 
 func TestLoggingServiceIntegration(t *testing.T) {

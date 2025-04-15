@@ -3,9 +3,9 @@ package commands
 import (
 	"fmt"
 
+	"github.com/r3e-network/neo_service_layer/internal/common/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
 var rootCmd = &cobra.Command{

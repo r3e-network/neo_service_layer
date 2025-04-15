@@ -9,10 +9,9 @@ import (
 
 	"github.com/nspcc-dev/neo-go/pkg/smartcontract"
 	"github.com/nspcc-dev/neo-go/pkg/util"
-	"github.com/will/neo_service_layer/internal/core/neo"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	"github.com/will/neo_service_layer/internal/services/trigger"
-	"github.com/will/neo_service_layer/internal/services/wallet"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
+	trigger "github.com/r3e-network/neo_service_layer/internal/triggerservice"
+	wallet "github.com/r3e-network/neo_service_layer/internal/walletservice"
 )
 
 func main() {
@@ -24,9 +23,9 @@ func main() {
 
 	// Configure trigger service
 	triggerConfig := &trigger.ServiceConfig{
-		MaxTriggers:          100,
-		MaxExecutions:        1000,
-		ExecutionWindow:      time.Hour * 24,
+		MaxTriggers:           100,
+		MaxExecutions:         1000,
+		ExecutionWindow:       time.Hour * 24,
 		MaxConcurrentTriggers: 10,
 	}
 
@@ -159,18 +158,18 @@ func exampleTriggerUsage(triggerService *trigger.Service) {
 
 	// Create a contract action trigger
 	contractTrigger := &trigger.Trigger{
-		Name:         "Example Contract Trigger",
-		Type:         "schedule",
-		Action:       "contract",
-		Schedule:     "30 * * * *", // 30 minutes past every hour
-		Description:  "An example contract trigger created in the mock services example",
+		Name:           "Example Contract Trigger",
+		Type:           "schedule",
+		Action:         "contract",
+		Schedule:       "30 * * * *", // 30 minutes past every hour
+		Description:    "An example contract trigger created in the mock services example",
 		TargetContract: contractHash,
 		TargetMethod:   "transfer",
 		Signer:         userAddress, // Using the same address as signer
 		ContractParams: []interface{}{
-			userAddress.StringLE(),                        // from
+			userAddress.StringLE(),                       // from
 			"0xabababababababababababababababababababab", // to
-			10,                                            // amount
+			10, // amount
 		},
 	}
 

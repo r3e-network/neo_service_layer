@@ -18,7 +18,7 @@ STEPS TO FULLY ENABLE SERVICES:
 
 2. Fix Logging Package Structure:
    - The fix_logging_package.sh script should have created the models directory structure
-   - Verify models directory exists: internal/services/logging/models/models.go
+   - Verify models directory exists: internal/loggingservice/models/models.go
    - Run: go mod tidy && go mod vendor
    - If problems persist, manually check imports in service.go
 
@@ -44,22 +44,20 @@ import (
 	// Temporarily comment out these imports until dependencies are fixed
 	"github.com/nspcc-dev/neo-go/pkg/config/netmode"
 	"github.com/nspcc-dev/neo-go/pkg/util"
-	"github.com/will/neo_service_layer/internal/common/config"
-	"github.com/will/neo_service_layer/internal/common/logger"
-	"github.com/will/neo_service_layer/internal/core/neo"
-	"github.com/will/neo_service_layer/internal/services/api"
-	"github.com/will/neo_service_layer/internal/services/functions"
-	"github.com/will/neo_service_layer/internal/services/gasbank"
-	gasbankmodels "github.com/will/neo_service_layer/internal/services/gasbank/models"
-	"github.com/will/neo_service_layer/internal/services/logging"
+	api "github.com/r3e-network/neo_service_layer/internal/apiservice"
+	"github.com/r3e-network/neo_service_layer/internal/common/config"
+	"github.com/r3e-network/neo_service_layer/internal/common/logger"
+	"github.com/r3e-network/neo_service_layer/internal/core/neo"
+	gasbank "github.com/r3e-network/neo_service_layer/internal/gasbankservice"
+	gasbankmodels "github.com/r3e-network/neo_service_layer/internal/gasbankservice/models"
+	logging "github.com/r3e-network/neo_service_layer/internal/loggingservice"
 
 	// Comment this out until we can get the imports properly working
-	loggingmodels "github.com/will/neo_service_layer/internal/services/logging/models"
-	"github.com/will/neo_service_layer/internal/services/metrics"
-	"github.com/will/neo_service_layer/internal/services/pricefeed"
-	"github.com/will/neo_service_layer/internal/services/secrets"
-	"github.com/will/neo_service_layer/internal/services/trigger"
-	"github.com/will/neo_service_layer/internal/tee"
+
+	metrics "github.com/r3e-network/neo_service_layer/internal/metricsservice"
+	pricefeed "github.com/r3e-network/neo_service_layer/internal/pricefeedservice"
+	"github.com/r3e-network/neo_service_layer/internal/tee"
+	trigger "github.com/r3e-network/neo_service_layer/internal/triggerservice"
 )
 
 // To fix neo-go package import errors, run:
@@ -73,8 +71,8 @@ func main() {
 	//    go get github.com/nspcc-dev/neo-go
 	//
 	// 2. Fix logging package structure by:
-	//    a. Creating directory: mkdir -p internal/services/logging/models
-	//    b. Creating file: internal/services/logging/models/models.go
+	//    a. Creating directory: mkdir -p internal/loggingservice/models
+	//    b. Creating file: internal/loggingservice/models/models.go
 	//       - Move all model definitions from logging/models.go there
 	//       - Change package declaration to "package models"
 	//    c. Update imports in main.go (uncomment loggingmodels import line)
@@ -167,14 +165,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	secretsSvc, err := initSecretsService(cfg, teeProvider)
+	secretsSvc, err := initsecretservice(cfg, teeProvider)
 	if err != nil {
 		log.Error("Failed to initialize secrets service", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
 
 	// Initialize Functions Service (depends on Secrets, GasBank, PriceFeed)
-	functionsSvc, err := initFunctionsService(cfg, gasBankSvc, priceFeedSvc, secretsSvc)
+	functionsSvc, err := initfunctionservice(cfg, gasBankSvc, priceFeedSvc, secretsSvc)
 	if err != nil {
 		log.Error("Failed to initialize functions service", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
@@ -386,7 +384,7 @@ func initPriceFeedService(cfg *config.Config, neoClient *neo.Client) (*pricefeed
 	return service, nil
 }
 
-func initTriggerService(cfg *config.Config, neoClient neo.RealNeoClient, functionsService *functions.Service) (*trigger.Service, error) {
+func initTriggerService(cfg *config.Config, neoClient neo.RealNeoClient, functionservice *functions.Service) (*trigger.Service, error) {
 	// TEMPORARY SOLUTION: Return nil until neo-go imports are fixed
 	log.Warn("Trigger service disabled until neo-go package imports are fixed", map[string]interface{}{
 		"fix": "Run: go get github.com/nspcc-dev/neo-go",
@@ -430,8 +428,8 @@ func initTriggerService(cfg *config.Config, neoClient neo.RealNeoClient, functio
 	}
 	walletService := wallet.NewWalletService(walletConfig)
 
-	// Assuming trigger.NewService requires neoClient, functionsService, and walletService
-	service, err := trigger.NewService(triggerSvcConfig, neoClient, functionsService, walletService)
+	// Assuming trigger.NewService requires neoClient, functionservice, and walletService
+	service, err := trigger.NewService(triggerSvcConfig, neoClient, functionservice, walletService)
 	if err != nil {
 		log.Error("Failed to initialize trigger service", map[string]interface{}{"error": err.Error()})
 		return nil, fmt.Errorf("failed to initialize trigger service: %w", err)
@@ -440,7 +438,7 @@ func initTriggerService(cfg *config.Config, neoClient neo.RealNeoClient, functio
 	return service, nil
 }
 
-func initFunctionsService(cfg *config.Config,
+func initfunctionservice(cfg *config.Config,
 	gasBankSvc gasbank.Service,
 	priceFeedSvc *pricefeed.Service,
 	secretsSvc secrets.Service,
@@ -461,7 +459,7 @@ func initFunctionsService(cfg *config.Config,
 		// Assign service references from parameters
 		GasBankService:   gasBankSvc,
 		PriceFeedService: priceFeedSvc,
-		SecretsService:   secretsSvc,
+		secretservice:    secretsSvc,
 		// TriggerService:     triggerSvc, // Need to pass triggerSvc here
 		// TransactionService: nil, // Need implementation
 	}
@@ -474,7 +472,7 @@ func initFunctionsService(cfg *config.Config,
 	return service, nil
 }
 
-func initSecretsService(cfg *config.Config, teeProvider secrets.TEESecurityProvider) (secrets.Service, error) {
+func initsecretservice(cfg *config.Config, teeProvider secrets.TEESecurityProvider) (secrets.Service, error) {
 	secretsCfg := cfg.Services.Secrets
 	secretsSvcConfig := &secrets.Config{
 		EncryptionKey:       secretsCfg.EncryptionKey,
@@ -539,8 +537,8 @@ func initAPIService(cfg *config.Config, gasBankSvc gasbank.Service, priceFeedSvc
 		GasBankService:   gasBankSvc,
 		PriceFeedService: priceFeedSvc,
 		TriggerService:   triggerSvc,
-		FunctionsService: functionsSvc,
-		SecretsService:   secretsSvc,
+		functionservice:  functionsSvc,
+		secretservice:    secretsSvc,
 		// AutomationService: nil,
 	}
 

@@ -10,9 +10,9 @@ The Neo Service Layer implementation is currently in a transitional state with s
 
 The logging service has a package structure issue. While we've created a script to fix it (`fix_logging_package.sh`), you should verify that:
 
-- The directory `/internal/services/logging/models` exists
-- The file `/internal/services/logging/models/models.go` contains the proper model definitions
-- The imports in `/internal/services/logging/service.go` correctly reference the models package
+- The directory `/internal/loggingservice/models` exists
+- The file `/internal/loggingservice/models/models.go` contains the proper model definitions
+- The imports in `/internal/loggingservice/service.go` correctly reference the models package
 
 ### 2. Missing Dependencies
 
@@ -57,7 +57,7 @@ Each service that's disabled currently returns `nil` with a warning log message.
 2. **Verify Logging Package Structure**:
    ```bash
    # Check if the models directory was created by the script
-   ls -la internal/services/logging/models/
+   ls -la internal/loggingservice/models/
    
    # If not, run the fix script
    chmod +x fix_logging_package.sh

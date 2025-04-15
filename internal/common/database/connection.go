@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/will/neo_service_layer/internal/common/config"
+	"github.com/r3e-network/neo_service_layer/internal/common/config"
 )
 
 // Connection represents a database connection

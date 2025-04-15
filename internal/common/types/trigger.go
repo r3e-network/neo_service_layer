@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/will/neo_service_layer/internal/common/retry"
+	"github.com/r3e-network/neo_service_layer/internal/common/retry"
 )
 
 // CreateTriggerRequest represents a request to create a new trigger

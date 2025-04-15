@@ -3,8 +3,8 @@ package commands
 import (
 	"fmt"
 
+	"github.com/r3e-network/neo_service_layer/internal/common/logger"
 	"github.com/spf13/cobra"
-	"github.com/will/neo_service_layer/internal/common/logger"
 )
 
 var functionLogger = logger.NewLogger("info")
