@@ -244,7 +244,7 @@ namespace NeoServiceLayer.Tests.Unit
             _enclaveServiceMock
                 .Setup(x => x.SendRequestAsync<object, Secret>(
                     It.Is<string>(s => s == Core.Constants.EnclaveServiceTypes.Secrets),
-                    It.Is<string>(s => s == Core.Constants.SecretsOperations.UpdateValue),
+                    It.Is<string>(s => s == Core.Constants.SecretsOperations.UpdateSecretValue),
                     It.IsAny<object>()))
                 .ReturnsAsync(updatedSecret);
 
@@ -269,7 +269,7 @@ namespace NeoServiceLayer.Tests.Unit
             _enclaveServiceMock.Verify(
                 x => x.SendRequestAsync<object, Secret>(
                     It.Is<string>(s => s == Core.Constants.EnclaveServiceTypes.Secrets),
-                    It.Is<string>(s => s == Core.Constants.SecretsOperations.UpdateValue),
+                    It.Is<string>(s => s == Core.Constants.SecretsOperations.UpdateSecretValue),
                     It.IsAny<object>()),
                 Times.Once);
             _secretsRepositoryMock.Verify(x => x.UpdateAsync(It.IsAny<Secret>()), Times.Once);

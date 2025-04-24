@@ -1,11 +1,14 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NeoServiceLayer.API.IntegrationTests.Models;
 using NeoServiceLayer.Core.Interfaces;
+using NeoServiceLayer.Core.Models;
 using NeoServiceLayer.Services.Function;
 using NeoServiceLayer.Services.Function.Repositories;
 using NeoServiceLayer.Services.Storage.Providers;
@@ -94,15 +97,87 @@ namespace NeoServiceLayer.API.IntegrationTests
     /// </summary>
     public class TestFunctionExecutor : IFunctionExecutor
     {
-        public Task<object> ExecuteAsync(Guid functionId, Dictionary<string, object> parameters, FunctionExecutionContext context)
+        public Task<FunctionExecutionResult> ExecuteAsync(Guid functionId, object input, FunctionExecutionContext context)
         {
             // Return a mock result
-            return Task.FromResult<object>(new Dictionary<string, object>
+            return Task.FromResult(new FunctionExecutionResult
             {
-                { "result", "success" },
-                { "executedAt", DateTime.UtcNow },
-                { "parameters", parameters }
+                Success = true,
+                Result = new Dictionary<string, object>
+                {
+                    { "result", "success" },
+                    { "executedAt", DateTime.UtcNow },
+                    { "parameters", input }
+                }
             });
+        }
+
+        public Task<FunctionExecutionResult> ExecuteByNameAsync(Guid accountId, string functionName, object input, FunctionExecutionContext context)
+        {
+            // Return a mock result
+            return Task.FromResult(new FunctionExecutionResult
+            {
+                Success = true,
+                Result = new Dictionary<string, object>
+                {
+                    { "result", "success" },
+                    { "executedAt", DateTime.UtcNow },
+                    { "parameters", input }
+                }
+            });
+        }
+
+        public Task<FunctionExecutionResult> ExecuteSourceAsync(string source, string runtime, string handler, object input, FunctionExecutionContext context)
+        {
+            // Return a mock result
+            return Task.FromResult(new FunctionExecutionResult
+            {
+                Success = true,
+                Result = new Dictionary<string, object>
+                {
+                    { "result", "success" },
+                    { "executedAt", DateTime.UtcNow },
+                    { "parameters", input }
+                }
+            });
+        }
+
+        public Task<FunctionValidationResult> ValidateAsync(string source, string runtime, string handler)
+        {
+            // Return a mock result
+            return Task.FromResult(new FunctionValidationResult
+            {
+                IsValid = true,
+                Messages = new List<string> { "Validation successful" }
+            });
+        }
+
+        public Task<IEnumerable<string>> GetSupportedRuntimesAsync()
+        {
+            // Return a mock result
+            return Task.FromResult<IEnumerable<string>>(new[] { "node", "dotnet", "python" });
+        }
+
+        public Task<FunctionRuntimeDetails> GetRuntimeDetailsAsync(string runtime)
+        {
+            // Return a mock result
+            return Task.FromResult(new FunctionRuntimeDetails
+            {
+                Name = runtime,
+                Version = "1.0.0",
+                Description = $"{runtime} runtime",
+                SupportedLanguages = new[] { runtime }
+            });
+        }
+
+        public Task InitializeAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ShutdownAsync()
+        {
+            return Task.CompletedTask;
         }
     }
 }

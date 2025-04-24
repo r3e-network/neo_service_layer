@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using NeoServiceLayer.Core.Interfaces;
 
@@ -12,6 +14,16 @@ namespace NeoServiceLayer.API.IntegrationTests
     public class InMemoryStorageProvider : IStorageProvider
     {
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, string>> _storage = new();
+
+        /// <summary>
+        /// Gets the name of the storage provider
+        /// </summary>
+        public string Name => "InMemoryStorage";
+
+        /// <summary>
+        /// Gets the type of the storage provider
+        /// </summary>
+        public string Type => "InMemory";
 
         /// <inheritdoc/>
         public Task<bool> DeleteAsync(string collection, string key)
@@ -27,7 +39,7 @@ namespace NeoServiceLayer.API.IntegrationTests
         /// <inheritdoc/>
         public Task<string> GetAsync(string collection, string key)
         {
-            if (_storage.TryGetValue(collection, out var collectionDict) && 
+            if (_storage.TryGetValue(collection, out var collectionDict) &&
                 collectionDict.TryGetValue(key, out var value))
             {
                 return Task.FromResult(value);
@@ -119,7 +131,7 @@ namespace NeoServiceLayer.API.IntegrationTests
         public Task<bool> SaveBatchAsync(string collection, Dictionary<string, string> keyValues)
         {
             var collectionDict = _storage.GetOrAdd(collection, _ => new ConcurrentDictionary<string, string>());
-            
+
             foreach (var kvp in keyValues)
             {
                 collectionDict[kvp.Key] = kvp.Value;
@@ -166,6 +178,146 @@ namespace NeoServiceLayer.API.IntegrationTests
         public Task<bool> ClearCollectionAsync(string collection)
         {
             return Task.FromResult(_storage.TryRemove(collection, out _));
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> InitializeAsync()
+        {
+            return Task.FromResult(true);
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> HealthCheckAsync()
+        {
+            return Task.FromResult(true);
+        }
+
+        /// <inheritdoc/>
+        public Task<T> CreateAsync<T>(string collection, T entity) where T : class
+        {
+            var id = GetEntityId(entity);
+            var json = JsonSerializer.Serialize(entity);
+            var collectionDict = _storage.GetOrAdd(collection, _ => new ConcurrentDictionary<string, string>());
+            collectionDict[id.ToString()] = json;
+            return Task.FromResult(entity);
+        }
+
+        /// <inheritdoc/>
+        public Task<T> GetByIdAsync<T, TKey>(string collection, TKey id) where T : class
+        {
+            if (_storage.TryGetValue(collection, out var collectionDict) &&
+                collectionDict.TryGetValue(id.ToString(), out var json))
+            {
+                return Task.FromResult(JsonSerializer.Deserialize<T>(json));
+            }
+
+            return Task.FromResult<T>(null);
+        }
+
+        /// <inheritdoc/>
+        public Task<IEnumerable<T>> GetByFilterAsync<T>(string collection, Func<T, bool> filter) where T : class
+        {
+            if (_storage.TryGetValue(collection, out var collectionDict))
+            {
+                var entities = collectionDict.Values
+                    .Select(json => JsonSerializer.Deserialize<T>(json))
+                    .Where(filter);
+                return Task.FromResult(entities);
+            }
+
+            return Task.FromResult(Enumerable.Empty<T>());
+        }
+
+        /// <inheritdoc/>
+        public Task<IEnumerable<T>> GetAllAsync<T>(string collection) where T : class
+        {
+            if (_storage.TryGetValue(collection, out var collectionDict))
+            {
+                var entities = collectionDict.Values
+                    .Select(json => JsonSerializer.Deserialize<T>(json));
+                return Task.FromResult(entities);
+            }
+
+            return Task.FromResult(Enumerable.Empty<T>());
+        }
+
+        /// <inheritdoc/>
+        public Task<T> UpdateAsync<T, TKey>(string collection, TKey id, T entity) where T : class
+        {
+            if (_storage.TryGetValue(collection, out var collectionDict))
+            {
+                var json = JsonSerializer.Serialize(entity);
+                collectionDict[id.ToString()] = json;
+                return Task.FromResult(entity);
+            }
+
+            return Task.FromResult<T>(null);
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> DeleteAsync<T, TKey>(string collection, TKey id) where T : class
+        {
+            if (_storage.TryGetValue(collection, out var collectionDict))
+            {
+                return Task.FromResult(collectionDict.TryRemove(id.ToString(), out _));
+            }
+
+            return Task.FromResult(false);
+        }
+
+        /// <inheritdoc/>
+        public Task<int> CountAsync<T>(string collection, Func<T, bool> filter = null) where T : class
+        {
+            if (_storage.TryGetValue(collection, out var collectionDict))
+            {
+                if (filter == null)
+                {
+                    return Task.FromResult(collectionDict.Count);
+                }
+
+                var count = collectionDict.Values
+                    .Select(json => JsonSerializer.Deserialize<T>(json))
+                    .Count(filter);
+                return Task.FromResult(count);
+            }
+
+            return Task.FromResult(0);
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> CollectionExistsAsync(string collection)
+        {
+            return Task.FromResult(_storage.ContainsKey(collection));
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> CreateCollectionAsync(string collection)
+        {
+            _storage.TryAdd(collection, new ConcurrentDictionary<string, string>());
+            return Task.FromResult(true);
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> DeleteCollectionAsync(string collection)
+        {
+            return Task.FromResult(_storage.TryRemove(collection, out _));
+        }
+
+        private string GetEntityId<T>(T entity)
+        {
+            // Try to get the Id property
+            var idProperty = typeof(T).GetProperty("Id");
+            if (idProperty != null)
+            {
+                var id = idProperty.GetValue(entity);
+                if (id != null)
+                {
+                    return id.ToString();
+                }
+            }
+
+            // If no Id property, use a GUID
+            return Guid.NewGuid().ToString();
         }
     }
 }
