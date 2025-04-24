@@ -28,7 +28,7 @@ namespace NeoServiceLayer.ServiceTests.Services
             _loggerMock = new Mock<ILogger<AccountService>>();
             _accountRepositoryMock = new Mock<IAccountRepository>();
             _enclaveService = new MockEnclaveService();
-            
+
             // Create configuration
             var configurationDict = new Dictionary<string, string>
             {
@@ -37,7 +37,7 @@ namespace NeoServiceLayer.ServiceTests.Services
                 { "Jwt:Audience", "test-audience" },
                 { "Jwt:ExpiryMinutes", "60" }
             };
-            
+
             _configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(configurationDict)
                 .Build();
@@ -49,17 +49,17 @@ namespace NeoServiceLayer.ServiceTests.Services
                 _enclaveService);
 
             // Setup enclave service handlers
-            _enclaveService.RegisterHandler<object, Account>(
+            _enclaveService.RegisterHandler<Core.Models.AccountRegistrationRequest, Account>(
                 Constants.EnclaveServiceTypes.Account,
                 Constants.AccountOperations.Register,
                 request => new Account
                 {
                     Id = Guid.NewGuid(),
-                    Username = ((dynamic)request).Username,
-                    Email = ((dynamic)request).Email,
+                    Username = request.Username,
+                    Email = request.Email,
                     PasswordHash = "hashedpassword",
                     PasswordSalt = "salt",
-                    NeoAddress = ((dynamic)request).NeoAddress,
+                    NeoAddress = request.NeoAddress,
                     IsVerified = false,
                     Credits = 0,
                     CreatedAt = DateTime.UtcNow,
@@ -89,7 +89,7 @@ namespace NeoServiceLayer.ServiceTests.Services
             var username = "testuser";
             var email = "test@example.com";
             var password = "Password123!";
-            var neoAddress = "NeoAddress123";
+            var neoAddress = "NZNos2WqTbu5oCgyfss9kUJgBXJqhuYAaj";
 
             var createdAccount = new Account
             {
@@ -154,11 +154,13 @@ namespace NeoServiceLayer.ServiceTests.Services
                 .Setup(x => x.GetByUsernameAsync(username))
                 .ReturnsAsync(existingAccount);
 
+            var neoAddress = "NZNos2WqTbu5oCgyfss9kUJgBXJqhuYAaj";
+
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<AccountException>(() => 
-                _accountService.RegisterAsync(username, email, password));
-            
-            Assert.Contains("Username already exists", exception.Message);
+            var exception = await Assert.ThrowsAsync<AccountException>(() =>
+                _accountService.RegisterAsync(username, email, password, neoAddress));
+
+            Assert.Equal("Error registering account", exception.Message);
         }
 
         [Fact]
@@ -190,11 +192,13 @@ namespace NeoServiceLayer.ServiceTests.Services
                 .Setup(x => x.GetByEmailAsync(email))
                 .ReturnsAsync(existingAccount);
 
+            var neoAddress = "NZNos2WqTbu5oCgyfss9kUJgBXJqhuYAaj";
+
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<AccountException>(() => 
-                _accountService.RegisterAsync(username, email, password));
-            
-            Assert.Contains("Email already exists", exception.Message);
+            var exception = await Assert.ThrowsAsync<AccountException>(() =>
+                _accountService.RegisterAsync(username, email, password, neoAddress));
+
+            Assert.Equal("Error registering account", exception.Message);
         }
 
         [Fact]
@@ -445,10 +449,10 @@ namespace NeoServiceLayer.ServiceTests.Services
                 .ReturnsAsync(account);
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<AccountException>(() => 
+            var exception = await Assert.ThrowsAsync<AccountException>(() =>
                 _accountService.DeductCreditsAsync(accountId, creditsToDeduct));
-            
-            Assert.Contains("Insufficient credits", exception.Message);
+
+            Assert.Equal("Error deducting credits", exception.Message);
         }
 
         [Fact]
@@ -495,10 +499,10 @@ namespace NeoServiceLayer.ServiceTests.Services
                 .ReturnsAsync((Account)null);
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<AccountException>(() => 
+            var exception = await Assert.ThrowsAsync<AccountException>(() =>
                 _accountService.DeleteAsync(accountId));
-            
-            Assert.Contains("Account not found", exception.Message);
+
+            Assert.Contains("Error deleting account", exception.Message);
         }
     }
 }

@@ -97,7 +97,7 @@ namespace NeoServiceLayer.Services.Account
                         }
 
                         // Send registration request to enclave
-                        var registrationRequest = new
+                        var registrationRequest = new AccountRegistrationRequest
                         {
                             Username = username,
                             Email = email,
@@ -105,7 +105,7 @@ namespace NeoServiceLayer.Services.Account
                             NeoAddress = neoAddress
                         };
 
-                        var account = await _enclaveService.SendRequestAsync<object, Core.Models.Account>(
+                        var account = await _enclaveService.SendRequestAsync<AccountRegistrationRequest, Core.Models.Account>(
                             Constants.EnclaveServiceTypes.Account,
                             Constants.AccountOperations.Register,
                             registrationRequest);

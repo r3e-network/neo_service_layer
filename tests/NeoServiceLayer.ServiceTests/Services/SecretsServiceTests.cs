@@ -33,40 +33,40 @@ namespace NeoServiceLayer.ServiceTests.Services
                 _enclaveService);
 
             // Setup enclave service handlers
-            _enclaveService.RegisterHandler<object, Secret>(
+            _enclaveService.RegisterHandler<Core.Models.SecretCreateRequest, Secret>(
                 Constants.EnclaveServiceTypes.Secrets,
                 Constants.SecretsOperations.CreateSecret,
                 request => new Secret
                 {
                     Id = Guid.NewGuid(),
-                    Name = ((dynamic)request).Name,
-                    Description = ((dynamic)request).Description,
-                    EncryptedValue = "encrypted:" + ((dynamic)request).Value,
+                    Name = request.Name,
+                    Description = request.Description,
+                    EncryptedValue = "encrypted:" + request.Value,
                     Version = 1,
-                    AccountId = ((dynamic)request).AccountId,
-                    AllowedFunctionIds = ((dynamic)request).AllowedFunctionIds,
+                    AccountId = request.AccountId,
+                    AllowedFunctionIds = request.AllowedFunctionIds,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    ExpiresAt = ((dynamic)request).ExpiresAt
+                    ExpiresAt = request.ExpiresAt
                 });
 
-            _enclaveService.RegisterHandler<object, Secret>(
+            _enclaveService.RegisterHandler<Core.Models.SecretUpdateValueRequest, Secret>(
                 Constants.EnclaveServiceTypes.Secrets,
-                Constants.SecretsOperations.UpdateValue,
+                Constants.SecretsOperations.UpdateSecretValue,
                 request => new Secret
                 {
-                    Id = ((dynamic)request).Id,
-                    EncryptedValue = "encrypted:" + ((dynamic)request).Value,
+                    Id = request.Id,
+                    EncryptedValue = "encrypted:" + request.Value,
                     Version = 2
                 });
 
-            _enclaveService.RegisterHandler<object, Secret>(
+            _enclaveService.RegisterHandler<Core.Models.SecretRotateRequest, Secret>(
                 Constants.EnclaveServiceTypes.Secrets,
                 Constants.SecretsOperations.RotateSecret,
                 request => new Secret
                 {
-                    Id = ((dynamic)request).Id,
-                    EncryptedValue = "encrypted:" + ((dynamic)request).NewValue,
+                    Id = request.Id,
+                    EncryptedValue = "encrypted:" + request.NewValue,
                     Version = 3
                 });
 
@@ -156,9 +156,9 @@ namespace NeoServiceLayer.ServiceTests.Services
                 .ReturnsAsync(existingSecret);
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<SecretsException>(() => 
+            var exception = await Assert.ThrowsAsync<SecretsException>(() =>
                 _secretsService.CreateSecretAsync(name, value, description, accountId, allowedFunctionIds));
-            
+
             Assert.Contains("Secret with this name already exists", exception.Message);
         }
 
@@ -275,9 +275,9 @@ namespace NeoServiceLayer.ServiceTests.Services
                 .ReturnsAsync((Secret)null);
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<SecretsException>(() => 
+            var exception = await Assert.ThrowsAsync<SecretsException>(() =>
                 _secretsService.UpdateValueAsync(secretId, newValue));
-            
+
             Assert.Contains("Secret not found", exception.Message);
         }
 

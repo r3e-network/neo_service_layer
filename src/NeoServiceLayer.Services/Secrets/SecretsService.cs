@@ -46,7 +46,7 @@ namespace NeoServiceLayer.Services.Secrets
             try
             {
                 // Send secret creation request to enclave
-                var secretRequest = new
+                var secretRequest = new SecretCreateRequest
                 {
                     Name = name,
                     Value = value,
@@ -56,7 +56,7 @@ namespace NeoServiceLayer.Services.Secrets
                     ExpiresAt = expiresAt
                 };
 
-                var secret = await _enclaveService.SendRequestAsync<object, Secret>(
+                var secret = await _enclaveService.SendRequestAsync<SecretCreateRequest, Secret>(
                     Constants.EnclaveServiceTypes.Secrets,
                     Constants.SecretsOperations.CreateSecret,
                     secretRequest);
@@ -123,15 +123,15 @@ namespace NeoServiceLayer.Services.Secrets
             try
             {
                 // Send value update request to enclave
-                var updateRequest = new
+                var updateRequest = new SecretUpdateValueRequest
                 {
                     Id = id,
                     Value = value
                 };
 
-                var updatedSecret = await _enclaveService.SendRequestAsync<object, Secret>(
+                var updatedSecret = await _enclaveService.SendRequestAsync<SecretUpdateValueRequest, Secret>(
                     Constants.EnclaveServiceTypes.Secrets,
-                    Constants.SecretsOperations.UpdateValue,
+                    Constants.SecretsOperations.UpdateSecretValue,
                     updateRequest);
 
                 // Update secret in repository
@@ -223,13 +223,13 @@ namespace NeoServiceLayer.Services.Secrets
             try
             {
                 // Send rotation request to enclave
-                var rotationRequest = new
+                var rotationRequest = new SecretRotateRequest
                 {
                     Id = id,
                     NewValue = newValue
                 };
 
-                var rotatedSecret = await _enclaveService.SendRequestAsync<object, Secret>(
+                var rotatedSecret = await _enclaveService.SendRequestAsync<SecretRotateRequest, Secret>(
                     Constants.EnclaveServiceTypes.Secrets,
                     Constants.SecretsOperations.RotateSecret,
                     rotationRequest);
