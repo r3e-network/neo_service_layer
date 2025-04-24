@@ -11,4 +11,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\src\NeoServiceLayer.Core\NeoServiceLayer.Core.csproj" />
+    <ProjectReference Include="..\src\NeoServiceLayer.Services\NeoServiceLayer.Services.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -329,7 +329,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _sourceRepositoryMock
                 .Setup(x => x.GetByNameAsync(source.Name))
-                .ReturnsAsync((PriceSource)null);
+                .ReturnsAsync((PriceSource?)null);
 
             _sourceRepositoryMock
                 .Setup(x => x.CreateAsync(It.IsAny<PriceSource>()))

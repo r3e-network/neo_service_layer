@@ -83,6 +83,7 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
         private readonly Dictionary<Guid, Core.Models.Account> _accounts = new();
         private readonly Dictionary<string, Core.Models.Account> _accountsByUsername = new();
         private readonly Dictionary<string, Core.Models.Account> _accountsByEmail = new();
+        private readonly Dictionary<string, Core.Models.Account> _accountsByNeoAddress = new();
 
         public Task<Core.Models.Account> AddAsync(Core.Models.Account account)
         {
@@ -94,6 +95,10 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
             _accounts[account.Id] = account;
             _accountsByUsername[account.Username] = account;
             _accountsByEmail[account.Email] = account;
+            if (!string.IsNullOrEmpty(account.NeoAddress))
+            {
+                _accountsByNeoAddress[account.NeoAddress] = account;
+            }
 
             return Task.FromResult(account);
         }
@@ -105,6 +110,10 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
                 _accounts.Remove(id);
                 _accountsByUsername.Remove(account.Username);
                 _accountsByEmail.Remove(account.Email);
+                if (!string.IsNullOrEmpty(account.NeoAddress))
+                {
+                    _accountsByNeoAddress.Remove(account.NeoAddress);
+                }
                 return Task.FromResult(true);
             }
 
@@ -129,9 +138,20 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
             return Task.FromResult(account);
         }
 
+        public Task<Core.Models.Account> GetByNeoAddressAsync(string neoAddress)
+        {
+            _accountsByNeoAddress.TryGetValue(neoAddress, out var account);
+            return Task.FromResult(account);
+        }
+
         public Task<IEnumerable<Core.Models.Account>> ListAsync(int skip = 0, int take = 100)
         {
             return Task.FromResult(_accounts.Values.Skip(skip).Take(take));
+        }
+
+        public Task<IEnumerable<Core.Models.Account>> GetAllAsync()
+        {
+            return Task.FromResult(_accounts.Values.AsEnumerable());
         }
 
         public Task<Core.Models.Account> UpdateAsync(Core.Models.Account account)
@@ -149,6 +169,18 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
                 {
                     _accountsByEmail.Remove(existingAccount.Email);
                     _accountsByEmail[account.Email] = account;
+                }
+
+                if (existingAccount.NeoAddress != account.NeoAddress)
+                {
+                    if (!string.IsNullOrEmpty(existingAccount.NeoAddress))
+                    {
+                        _accountsByNeoAddress.Remove(existingAccount.NeoAddress);
+                    }
+                    if (!string.IsNullOrEmpty(account.NeoAddress))
+                    {
+                        _accountsByNeoAddress[account.NeoAddress] = account;
+                    }
                 }
 
                 _accounts[account.Id] = account;
@@ -261,6 +293,8 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
     {
         private readonly Dictionary<Guid, Core.Models.Function> _functions = new();
         private readonly Dictionary<string, Dictionary<Guid, Core.Models.Function>> _functionsByNameAndAccount = new();
+        private readonly Dictionary<string, List<Core.Models.Function>> _functionsByRuntime = new();
+        private readonly Dictionary<string, List<Core.Models.Function>> _functionsByTag = new();
 
         public Task<Core.Models.Function> CreateAsync(Core.Models.Function function)
         {
@@ -278,6 +312,29 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
 
             _functionsByNameAndAccount[function.Name][function.AccountId] = function;
 
+            // Add to runtime index
+            if (!string.IsNullOrEmpty(function.Runtime))
+            {
+                if (!_functionsByRuntime.ContainsKey(function.Runtime))
+                {
+                    _functionsByRuntime[function.Runtime] = new List<Core.Models.Function>();
+                }
+                _functionsByRuntime[function.Runtime].Add(function);
+            }
+
+            // Add to tags index
+            if (function.Tags != null)
+            {
+                foreach (var tag in function.Tags)
+                {
+                    if (!_functionsByTag.ContainsKey(tag))
+                    {
+                        _functionsByTag[tag] = new List<Core.Models.Function>();
+                    }
+                    _functionsByTag[tag].Add(function);
+                }
+            }
+
             return Task.FromResult(function);
         }
 
@@ -287,6 +344,25 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
             {
                 _functions.Remove(id);
                 _functionsByNameAndAccount[function.Name].Remove(function.AccountId);
+
+                // Remove from runtime index
+                if (!string.IsNullOrEmpty(function.Runtime) && _functionsByRuntime.ContainsKey(function.Runtime))
+                {
+                    _functionsByRuntime[function.Runtime].Remove(function);
+                }
+
+                // Remove from tags index
+                if (function.Tags != null)
+                {
+                    foreach (var tag in function.Tags)
+                    {
+                        if (_functionsByTag.ContainsKey(tag))
+                        {
+                            _functionsByTag[tag].Remove(function);
+                        }
+                    }
+                }
+
                 return Task.FromResult(true);
             }
 
@@ -316,9 +392,9 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
             return Task.FromResult(functions);
         }
 
-        public Task<Core.Models.Function> UpdateAsync(Core.Models.Function function)
+        public Task<Core.Models.Function> UpdateAsync(Guid id, Core.Models.Function function)
         {
-            if (_functions.TryGetValue(function.Id, out var existingFunction))
+            if (_functions.TryGetValue(id, out var existingFunction))
             {
                 // Update name mapping if it changed
                 if (existingFunction.Name != function.Name)
@@ -333,11 +409,147 @@ namespace NeoServiceLayer.IntegrationTests.TestFixtures
                     _functionsByNameAndAccount[function.Name][function.AccountId] = function;
                 }
 
-                _functions[function.Id] = function;
+                // Update runtime index
+                if (existingFunction.Runtime != function.Runtime)
+                {
+                    if (!string.IsNullOrEmpty(existingFunction.Runtime) && _functionsByRuntime.ContainsKey(existingFunction.Runtime))
+                    {
+                        _functionsByRuntime[existingFunction.Runtime].Remove(existingFunction);
+                    }
+
+                    if (!string.IsNullOrEmpty(function.Runtime))
+                    {
+                        if (!_functionsByRuntime.ContainsKey(function.Runtime))
+                        {
+                            _functionsByRuntime[function.Runtime] = new List<Core.Models.Function>();
+                        }
+                        _functionsByRuntime[function.Runtime].Add(function);
+                    }
+                }
+
+                // Update tags index
+                if (existingFunction.Tags != null)
+                {
+                    foreach (var tag in existingFunction.Tags)
+                    {
+                        if (_functionsByTag.ContainsKey(tag))
+                        {
+                            _functionsByTag[tag].Remove(existingFunction);
+                        }
+                    }
+                }
+
+                if (function.Tags != null)
+                {
+                    foreach (var tag in function.Tags)
+                    {
+                        if (!_functionsByTag.ContainsKey(tag))
+                        {
+                            _functionsByTag[tag] = new List<Core.Models.Function>();
+                        }
+                        _functionsByTag[tag].Add(function);
+                    }
+                }
+
+                _functions[id] = function;
                 return Task.FromResult(function);
             }
 
             return Task.FromResult<Core.Models.Function>(null);
+        }
+
+        public Task<Core.Models.Function> UpdateAsync(Core.Models.Function function)
+        {
+            return UpdateAsync(function.Id, function);
+        }
+
+        public Task<bool> ExistsAsync(Guid id)
+        {
+            return Task.FromResult(_functions.ContainsKey(id));
+        }
+
+        public Task<IEnumerable<Core.Models.Function>> GetAllAsync(int skip = 0, int take = 100)
+        {
+            return Task.FromResult(_functions.Values.Skip(skip).Take(take));
+        }
+
+        public Task<int> CountAsync()
+        {
+            return Task.FromResult(_functions.Count);
+        }
+
+        public Task<int> CountByAccountIdAsync(Guid accountId)
+        {
+            return Task.FromResult(_functions.Values.Count(f => f.AccountId == accountId));
+        }
+
+        public Task<int> CountByRuntimeAsync(string runtime)
+        {
+            if (_functionsByRuntime.TryGetValue(runtime, out var functions))
+            {
+                return Task.FromResult(functions.Count);
+            }
+            return Task.FromResult(0);
+        }
+
+        public Task<int> CountByTagsAsync(List<string> tags)
+        {
+            var functions = new HashSet<Core.Models.Function>();
+            foreach (var tag in tags)
+            {
+                if (_functionsByTag.TryGetValue(tag, out var taggedFunctions))
+                {
+                    foreach (var function in taggedFunctions)
+                    {
+                        functions.Add(function);
+                    }
+                }
+            }
+            return Task.FromResult(functions.Count);
+        }
+
+        public Task<IEnumerable<Core.Models.Function>> GetByAccountIdAsync(Guid accountId, int skip = 0, int take = 100)
+        {
+            return Task.FromResult(_functions.Values.Where(f => f.AccountId == accountId).Skip(skip).Take(take));
+        }
+
+        public Task<IEnumerable<Core.Models.Function>> GetByNameAsync(string name, int skip = 0, int take = 100)
+        {
+            if (_functionsByNameAndAccount.TryGetValue(name, out var functionsByAccount))
+            {
+                return Task.FromResult(functionsByAccount.Values.Skip(skip).Take(take));
+            }
+            return Task.FromResult(Enumerable.Empty<Core.Models.Function>());
+        }
+
+        public Task<Core.Models.Function> GetByNameAndAccountIdAsync(string name, Guid accountId)
+        {
+            return GetByNameAsync(name, accountId);
+        }
+
+        public Task<IEnumerable<Core.Models.Function>> GetByRuntimeAsync(string runtime, int skip = 0, int take = 100)
+        {
+            if (_functionsByRuntime.TryGetValue(runtime, out var functions))
+            {
+                return Task.FromResult(functions.Skip(skip).Take(take).AsEnumerable());
+            }
+            return Task.FromResult(Enumerable.Empty<Core.Models.Function>());
+        }
+
+        public Task<IEnumerable<Core.Models.Function>> GetByTagsAsync(List<string> tags, int skip = 0, int take = 100)
+        {
+            var functions = new HashSet<Core.Models.Function>();
+            foreach (var tag in tags)
+            {
+                if (_functionsByTag.TryGetValue(tag, out var taggedFunctions))
+                {
+                    foreach (var function in taggedFunctions)
+                    {
+                        functions.Add(function);
+                    }
+                }
+            }
+            return Task.FromResult(functions.Skip(skip).Take(take).AsEnumerable());
         }
     }
 
