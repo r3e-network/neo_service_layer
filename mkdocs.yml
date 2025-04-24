@@ -1,8 +1,8 @@
 site_name: Neo Service Layer
 site_description: A serverless platform for Neo N3 blockchain with AWS Nitro Enclave support
 site_author: Neo Service Layer Contributors
-repo_url: https://github.com/your-org/neo-service-layer
-repo_name: your-org/neo-service-layer
+repo_url: https://github.com/r3e-network/neo-service-layer
+repo_name: r3e-network/neo-service-layer
 
 theme:
   name: material
@@ -44,7 +44,7 @@ nav:
     - Monitoring: monitoring-guide.md
   - Security: security.md
   - Production Readiness: production-readiness.md
-  - Future Enhancements: 
+  - Future Enhancements:
     - Overview: future-enhancements.md
     - Future Work: future_work.md
 

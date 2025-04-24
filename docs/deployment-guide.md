@@ -14,7 +14,7 @@ This guide outlines the steps to deploy the Neo Service Layer to a production en
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-org/neo-service-layer.git
+   git clone https://github.com/r3e-network/neo-service-layer.git
    cd neo-service-layer
    ```
 
