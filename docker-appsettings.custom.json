@@ -1,0 +1,230 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "MongoDB": "mongodb://mongodb:27017/neo_service_layer",
+    "Redis": "redis:6379"
+  },
+  "JwtSettings": {
+    "Secret": "your-secret-key-here-at-least-32-characters",
+    "Issuer": "neo-service-layer",
+    "Audience": "neo-service-layer-clients",
+    "ExpiryMinutes": 60
+  },
+  "Auth": {
+    "Enabled": true,
+    "DefaultProvider": "JWT",
+    "Providers": [
+      {
+        "Name": "JWT",
+        "Type": "JWT",
+        "IsEnabled": true,
+        "Options": {
+          "Secret": "your-secret-key-here-at-least-32-characters",
+          "Issuer": "neo-service-layer",
+          "Audience": "neo-service-layer-clients",
+          "ExpiryMinutes": 60
+        }
+      }
+    ]
+  },
+  "Cors": {
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "http://localhost:8081"
+    ]
+  },
+  "Swagger": {
+    "Enabled": true,
+    "Title": "Neo Service Layer API",
+    "Description": "API for Neo Service Layer",
+    "Version": "v1",
+    "Contact": {
+      "Name": "Neo Service Layer Team",
+      "Email": "support@neoservicelayer.com",
+      "Url": "https://neoservicelayer.com"
+    }
+  },
+  "HealthChecks": {
+    "Enabled": true,
+    "Path": "/health"
+  },
+  "Metrics": {
+    "Enabled": true,
+    "Path": "/metrics",
+    "Port": 9090
+  },
+  "Tracing": {
+    "Enabled": true,
+    "ServiceName": "neo-service-layer-api",
+    "SamplingRate": 1.0
+  },
+  "Caching": {
+    "Enabled": true,
+    "DefaultExpirySeconds": 300
+  },
+  "RateLimiting": {
+    "Enabled": true,
+    "Period": "1m",
+    "Limit": 100
+  },
+  "Notifications": {
+    "Enabled": true,
+    "Email": {
+      "Enabled": true,
+      "SmtpServer": "mailhog",
+      "SmtpPort": 1025,
+      "SmtpUsername": "",
+      "SmtpPassword": "",
+      "FromEmail": "noreply@neoservicelayer.com",
+      "FromName": "Neo Service Layer"
+    },
+    "Sms": {
+      "Enabled": false,
+      "Provider": "Twilio",
+      "AccountSid": "",
+      "AuthToken": "",
+      "FromNumber": ""
+    },
+    "Push": {
+      "Enabled": false,
+      "Provider": "Firebase",
+      "ApiKey": ""
+    }
+  },
+  "Storage": {
+    "Enabled": true,
+    "Provider": "MongoDB",
+    "ConnectionString": "mongodb://mongodb:27017/neo_service_layer",
+    "BucketName": "neo-service-layer"
+  },
+  "Account": {
+    "Enabled": true,
+    "DefaultRole": "user",
+    "PasswordPolicy": {
+      "MinLength": 8,
+      "RequireUppercase": true,
+      "RequireLowercase": true,
+      "RequireDigit": true,
+      "RequireSpecialCharacter": true
+    },
+    "VerificationRequired": true,
+    "VerificationExpiryHours": 24,
+    "ResetPasswordExpiryHours": 1
+  },
+  "Wallet": {
+    "Enabled": true,
+    "DefaultNetwork": "MainNet",
+    "Networks": [
+      {
+        "Name": "MainNet",
+        "RpcUrl": "http://seed1.neo.org:10332",
+        "WsUrl": "wss://seed1.neo.org:10331",
+        "ExplorerUrl": "https://explorer.neo.org"
+      },
+      {
+        "Name": "TestNet",
+        "RpcUrl": "http://seed1t5.neo.org:20332",
+        "WsUrl": "wss://seed1t5.neo.org:20331",
+        "ExplorerUrl": "https://testnet.explorer.neo.org"
+      }
+    ]
+  },
+  "Transaction": {
+    "Enabled": true,
+    "DefaultFee": 0.001,
+    "MaxFee": 0.1,
+    "DefaultGas": 20,
+    "MaxGas": 1000
+  },
+  "GasBank": {
+    "Enabled": true,
+    "DefaultGasAmount": 10,
+    "MaxGasAmount": 1000,
+    "RefillThreshold": 100,
+    "RefillAmount": 500
+  },
+  "PriceFeed": {
+    "Enabled": false,
+    "UpdateIntervalSeconds": 60,
+    "Symbols": [
+      "NEO",
+      "GAS",
+      "BTC",
+      "ETH",
+      "USDT",
+      "USDC"
+    ],
+    "Providers": [
+      {
+        "Name": "CoinGecko",
+        "Enabled": true,
+        "ApiKey": "",
+        "BaseUrl": "https://api.coingecko.com/api/v3",
+        "Weight": 1.0
+      },
+      {
+        "Name": "CoinMarketCap",
+        "Enabled": false,
+        "ApiKey": "",
+        "BaseUrl": "https://pro-api.coinmarketcap.com/v1",
+        "Weight": 1.0
+      },
+      {
+        "Name": "Binance",
+        "Enabled": false,
+        "ApiKey": "",
+        "BaseUrl": "https://api.binance.com/api/v3",
+        "Weight": 1.0
+      }
+    ]
+  },
+  "Event": {
+    "Enabled": false,
+    "MaxSubscriptionsPerUser": 10,
+    "MaxRetries": 3,
+    "RetryIntervalSeconds": 60
+  },
+  "Function": {
+    "Enabled": false,
+    "MaxExecutionTimeSeconds": 30,
+    "MaxMemoryMB": 256,
+    "EnableJavaScript": true,
+    "EnablePython": true,
+    "EnableDotNet": true,
+    "NodeJsPath": "/usr/bin/node",
+    "PythonPath": "/usr/bin/python3",
+    "Runtimes": {
+      "JavaScript": {
+        "NodePath": "/usr/bin/node",
+        "MaxExecutionTimeSeconds": 30,
+        "MaxMemoryMB": 256,
+        "AllowedModules": ["axios", "moment", "lodash"]
+      },
+      "Python": {
+        "PythonPath": "/usr/bin/python3",
+        "MaxExecutionTimeSeconds": 30,
+        "MaxMemoryMB": 256,
+        "AllowedModules": ["requests", "pandas", "numpy"]
+      },
+      "CSharp": {
+        "MaxExecutionTimeSeconds": 30,
+        "MaxMemoryMB": 256,
+        "AllowedNamespaces": ["System", "System.Collections.Generic", "System.Linq", "System.Text", "System.Threading.Tasks"]
+      }
+    }
+  },
+  "Enclave": {
+    "CID": 3,
+    "Port": 5000,
+    "UseVsock": true,
+    "Enabled": false
+  }
+}

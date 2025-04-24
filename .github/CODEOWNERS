@@ -1,0 +1,32 @@
+# These owners will be the default owners for everything in the repo.
+# Unless a later match takes precedence, they will be requested for
+# review when someone opens a pull request.
+* @Jim8y
+
+# Order is important; the last matching pattern takes the most precedence.
+
+# Core services
+/src/NeoServiceLayer.Core/ @Jim8y
+/src/NeoServiceLayer.Services/ @Jim8y
+/src/NeoServiceLayer.Common/ @Jim8y
+
+# API
+/src/NeoServiceLayer.Api/ @Jim8y
+
+# Enclave
+/src/NeoServiceLayer.Enclave/ @Jim8y
+
+# Documentation
+/docs/ @Jim8y
+
+# Tests
+/tests/ @Jim8y
+
+# Docker and deployment
+/custom/ @Jim8y
+/scripts/ @Jim8y
+docker-compose*.yml @Jim8y
+Dockerfile* @Jim8y
+
+# GitHub Actions
+/.github/workflows/ @Jim8y

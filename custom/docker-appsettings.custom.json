@@ -1,0 +1,290 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "AllowedHosts": "*",
+  "JwtSettings": {
+    "Secret": "your-secret-key-here-at-least-32-characters",
+    "Issuer": "neo-service-layer",
+    "Audience": "neo-service-layer-clients",
+    "ExpiryMinutes": 60
+  },
+  "Auth": {
+    "Enabled": true,
+    "DefaultProvider": "JWT",
+    "Providers": [
+      {
+        "Name": "JWT",
+        "Type": "JWT",
+        "IsEnabled": true,
+        "Options": {
+          "Secret": "your-secret-key-here-at-least-32-characters",
+          "Issuer": "neo-service-layer",
+          "Audience": "neo-service-layer-clients",
+          "ExpiryMinutes": 60
+        }
+      }
+    ]
+  },
+  "Storage": {
+    "Enabled": true,
+    "DefaultProvider": "MongoDB",
+    "ConnectionString": "mongodb://mongodb:27017/neo_service_layer",
+    "Providers": [
+      {
+        "Name": "LocalFile",
+        "Type": "File",
+        "BasePath": "/app/Storage",
+        "MaxFileSize": 104857600,
+        "MaxStorageSize": 1073741824,
+        "Options": {
+          "AllowedFileTypes": ".jpg,.jpeg,.png,.pdf,.txt,.json,.csv"
+        }
+      }
+    ]
+  },
+  "CircuitBreaker": {
+    "Enabled": true,
+    "FailureThreshold": 5,
+    "ResetTimeoutSeconds": 60
+  },
+
+  "MongoDbConnectionPool": {
+    "Enabled": true,
+    "MaxConnections": 100,
+    "IdleTimeoutMinutes": 30
+  },
+
+  "MongoDbSharding": {
+    "Enabled": false,
+    "ConnectionString": "mongodb://mongodb:27017",
+    "DatabaseName": "neo_service_layer",
+    "ShardedCollections": [
+      {
+        "Name": "prices",
+        "ShardKey": "symbol"
+      },
+      {
+        "Name": "event_logs",
+        "ShardKey": "accountId"
+      },
+      {
+        "Name": "function_executions",
+        "ShardKey": "accountId"
+      },
+      {
+        "Name": "notifications",
+        "ShardKey": "accountId"
+      }
+    ],
+    "Shards": []
+  },
+
+  "DatabaseMigration": {
+    "RunMigrationsOnStartup": true,
+    "AllowDowngradeMigrations": false,
+    "MigrationTimeoutSeconds": 60
+  },
+
+  "DatabaseBackup": {
+    "BackupIntervalHours": 24,
+    "BackupDirectory": "/app/Backups",
+    "BackupsToKeep": 7,
+    "UploadToS3": false,
+    "DeleteLocalBackupAfterUpload": false
+  },
+
+  "ConnectionStrings": {
+    "MongoDB": "mongodb://mongodb:27017/neo_service_layer",
+    "Redis": "redis:6379"
+  },
+  "Database": {
+    "DefaultProvider": "MongoDB",
+    "Providers": [
+      {
+        "Name": "InMemory",
+        "Type": "InMemory",
+        "Options": {}
+      },
+      {
+        "Name": "LocalFile",
+        "Type": "File",
+        "BasePath": "/app/Database",
+        "Options": {}
+      },
+      {
+        "Name": "MongoDB",
+        "Type": "MongoDB",
+        "IsDefault": true,
+        "Options": {
+          "ConnectionString": "mongodb://mongodb:27017/neo_service_layer",
+          "DatabaseName": "neo_service_layer"
+        }
+      },
+      {
+        "Name": "Redis",
+        "Type": "Redis",
+        "Options": {
+          "ConnectionString": "redis:6379",
+          "KeyPrefix": "nsl:"
+        }
+      }
+    ]
+  },
+  "EventMonitoring": {
+    "NodeUrls": [
+      "http://seed1.neo.org:10332",
+      "http://seed2.neo.org:10332",
+      "http://seed3.neo.org:10332"
+    ],
+    "MonitoringIntervalSeconds": 15,
+    "NotificationIntervalSeconds": 10,
+    "StartBlockHeight": 0,
+    "MaxBlockBatchSize": 100,
+    "MaxConcurrentNotifications": 10,
+    "DefaultRetryCount": 3,
+    "DefaultRetryIntervalSeconds": 60,
+    "HttpTimeoutSeconds": 30,
+    "AutoStart": true,
+    "IncludeEventDataByDefault": true,
+    "MaxPayloadSizeBytes": 1048576
+  },
+  "Notification": {
+    "ProcessingIntervalSeconds": 15,
+    "MaxBatchSize": 100,
+    "DefaultMaxRetryCount": 3,
+    "RetryIntervalSeconds": 60,
+    "DefaultChannels": [ "Email", "InApp" ],
+    "DefaultSenderEmail": "noreply@neoservicelayer.com",
+    "DefaultSenderName": "Neo Service Layer",
+    "SmtpHost": "mailhog",
+    "SmtpPort": 1025,
+    "SmtpUsername": "",
+    "SmtpPassword": "",
+    "SmtpEnableSsl": false,
+    "SmsApiUrl": "",
+    "SmsApiKey": "",
+    "PushApiUrl": "",
+    "PushApiKey": "",
+    "WebhookTimeoutSeconds": 30,
+    "Providers": [
+      {
+        "Name": "Email",
+        "Type": "Email",
+        "IsEnabled": true,
+        "Options": {
+          "SmtpHost": "mailhog",
+          "SmtpPort": "1025",
+          "SmtpUsername": "",
+          "SmtpPassword": "",
+          "SmtpEnableSsl": "false",
+          "SenderEmail": "noreply@neoservicelayer.com",
+          "SenderName": "Neo Service Layer"
+        }
+      },
+      {
+        "Name": "InApp",
+        "Type": "InApp",
+        "IsEnabled": true,
+        "Options": {}
+      }
+    ]
+  },
+  "Analytics": {
+    "Enabled": true,
+    "StorageProvider": "MongoDB",
+    "RetentionDays": 90,
+    "MetricCollectionIntervalSeconds": 60,
+    "EventBatchSize": 100,
+    "EventFlushIntervalSeconds": 15,
+    "AlertEvaluationIntervalSeconds": 60,
+    "ReportExecutionIntervalSeconds": 60,
+    "MaxConcurrentReportExecutions": 5,
+    "MaxReportExecutionTimeSeconds": 300,
+    "MaxQueryExecutionTimeSeconds": 60,
+    "MaxDataPointsPerQuery": 10000,
+    "MaxDimensionsPerQuery": 10,
+    "DefaultAggregationPeriod": "Hour",
+    "DefaultTimeRange": "last24h",
+    "DefaultDashboardRefreshIntervalSeconds": 300,
+    "SystemMetrics": [
+      "cpu.usage",
+      "memory.usage",
+      "disk.usage",
+      "network.in",
+      "network.out",
+      "api.requests",
+      "api.errors",
+      "api.latency"
+    ],
+    "SystemEvents": [
+      "user.login",
+      "user.logout",
+      "user.register",
+      "account.created",
+      "account.updated",
+      "account.deleted",
+      "wallet.created",
+      "wallet.updated",
+      "wallet.deleted",
+      "transaction.created",
+      "transaction.signed",
+      "transaction.sent",
+      "function.executed",
+      "event.triggered",
+      "notification.sent"
+    ],
+    "DefaultAlertChannels": [
+      "Email",
+      "InApp"
+    ],
+    "DefaultReportFormats": [
+      "PDF",
+      "CSV"
+    ],
+    "DefaultReportDeliveryMethods": [
+      "Email",
+      "Storage"
+    ]
+  },
+  "Enclave": {
+    "CID": 3,
+    "Port": 5000,
+    "UseVsock": false,
+    "Enabled": false,
+    "Host": "enclave"
+  },
+  "Function": {
+    "Enabled": false,
+    "MaxExecutionTimeSeconds": 30,
+    "MaxMemoryMB": 256,
+    "EnableJavaScript": true,
+    "EnablePython": true,
+    "EnableDotNet": true,
+    "NodeJsPath": "/usr/bin/node",
+    "PythonPath": "/usr/bin/python3",
+    "Runtimes": {
+      "JavaScript": {
+        "NodePath": "/usr/bin/node",
+        "MaxExecutionTimeSeconds": 30,
+        "MaxMemoryMB": 256,
+        "AllowedModules": ["axios", "moment", "lodash"]
+      },
+      "Python": {
+        "PythonPath": "/usr/bin/python3",
+        "MaxExecutionTimeSeconds": 30,
+        "MaxMemoryMB": 256,
+        "AllowedModules": ["requests", "pandas", "numpy"]
+      },
+      "CSharp": {
+        "MaxExecutionTimeSeconds": 30,
+        "MaxMemoryMB": 256,
+        "AllowedNamespaces": ["System", "System.Collections.Generic", "System.Linq", "System.Text", "System.Threading.Tasks"]
+      }
+    }
+  }
+}

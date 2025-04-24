@@ -1,28 +1,24 @@
-FROM node:18-alpine
-
-# Install system dependencies
-RUN apk add --no-cache python3 make g++ git
-
-# Set working directory
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
 WORKDIR /app
+EXPOSE 80
+EXPOSE 443
 
-# Copy package files
-COPY package*.json ./
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+WORKDIR /src
+COPY ["src/NeoServiceLayer.Api/NeoServiceLayer.Api.csproj", "NeoServiceLayer.Api/"]
+COPY ["src/NeoServiceLayer.Core/NeoServiceLayer.Core.csproj", "NeoServiceLayer.Core/"]
+COPY ["src/NeoServiceLayer.Services/NeoServiceLayer.Services.csproj", "NeoServiceLayer.Services/"]
+COPY ["src/NeoServiceLayer.Enclave/NeoServiceLayer.Enclave.csproj", "NeoServiceLayer.Enclave/"]
+COPY ["src/NeoServiceLayer.Common/NeoServiceLayer.Common.csproj", "NeoServiceLayer.Common/"]
+RUN dotnet restore "NeoServiceLayer.Api/NeoServiceLayer.Api.csproj"
+COPY src/ .
+WORKDIR "/src/NeoServiceLayer.Api"
+RUN dotnet build "NeoServiceLayer.Api.csproj" -c Release -o /app/build
 
-# Install dependencies
-RUN npm ci
+FROM build AS publish
+RUN dotnet publish "NeoServiceLayer.Api.csproj" -c Release -o /app/publish
 
-# Copy source code
-COPY . .
-
-# Build the application
-RUN npm run build
-
-# Expose ports
-EXPOSE 3000 9090
-
-# Set environment variables
-ENV NODE_ENV=production
-
-# Start the service
-CMD ["npm", "start"]
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "NeoServiceLayer.Api.dll"]

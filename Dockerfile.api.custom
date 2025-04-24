@@ -1,0 +1,35 @@
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+WORKDIR /src
+COPY ["src/NeoServiceLayer.Api/NeoServiceLayer.Api.csproj", "NeoServiceLayer.Api/"]
+COPY ["src/NeoServiceLayer.Core/NeoServiceLayer.Core.csproj", "NeoServiceLayer.Core/"]
+COPY ["src/NeoServiceLayer.Common/NeoServiceLayer.Common.csproj", "NeoServiceLayer.Common/"]
+COPY ["src/NeoServiceLayer.Services/NeoServiceLayer.Services.csproj", "NeoServiceLayer.Services/"]
+COPY ["src/NeoServiceLayer.Enclave/NeoServiceLayer.Enclave.csproj", "NeoServiceLayer.Enclave/"]
+RUN dotnet restore "NeoServiceLayer.Api/NeoServiceLayer.Api.csproj"
+COPY src/ ./
+
+# Copy custom FunctionServiceExtensions.cs file
+COPY FunctionServiceExtensions.cs /src/NeoServiceLayer.Services/Function/
+
+WORKDIR "/src"
+RUN dotnet build "NeoServiceLayer.Api/NeoServiceLayer.Api.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "NeoServiceLayer.Api/NeoServiceLayer.Api.csproj" -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
+WORKDIR /app
+RUN apt-get update && apt-get install -y curl netcat-openbsd && rm -rf /var/lib/apt/lists/*
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+RUN mkdir -p /app/Storage /app/Database /app/Backups /app/Templates
+
+# Create template files
+COPY Templates/ /app/Templates/
+
+# Create entrypoint script
+RUN echo '#!/bin/bash\necho "Waiting for MongoDB to be ready..."\nwhile ! nc -z mongodb 27017; do\n  echo "MongoDB is unavailable - sleeping"\n  sleep 1\ndone\necho "MongoDB is up - starting Neo Service Layer API"\necho "Starting Neo Service Layer API..."\ndotnet NeoServiceLayer.Api.dll' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

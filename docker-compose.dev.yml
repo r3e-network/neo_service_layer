@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # Database and Cache Services
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - ./init-mongodb.sh:/docker-entrypoint-initdb.d/init-mongodb.sh
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand({ping:1}).ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - neo-service-network
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - neo-service-network
+
+  # Core Services
+  api:
+    build:
+      context: .
+      dockerfile: custom/Dockerfile.function.api
+    ports:
+      - "8080:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Logging__LogLevel__Default=Debug
+      - Logging__LogLevel__Microsoft=Information
+      - Logging__LogLevel__Microsoft.Hosting.Lifetime=Information
+    volumes:
+      - ./custom:/app/custom
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - neo-service-network
+
+  # Support Services
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    restart: unless-stopped
+    networks:
+      - neo-service-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - neo-service-network
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - neo-service-network
+
+  # Development Tools
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    ports:
+      - "8081:8080"
+    environment:
+      - API_URL=http://api:80/swagger/v1/swagger.json
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - neo-service-network
+
+  # Documentation
+  docs:
+    image: squidfunk/mkdocs-material:latest
+    volumes:
+      - .:/docs
+    ports:
+      - "8000:8000"
+    command: serve --dev-addr=0.0.0.0:8000
+    networks:
+      - neo-service-network
+
+volumes:
+  mongodb-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  neo-service-network:
+    driver: bridge

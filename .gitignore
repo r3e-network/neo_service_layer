@@ -63,3 +63,43 @@ temp/
 **/node_modules/**
 .next/
 .cursor/
+
+**/TestResult/**
+**/obj/**
+**/bin/**
+**/obj/
+external/
+
+# Docker related
+.docker/
+docker-compose.override.yml
+
+# Development scripts
+scripts/create_project_structure.sh
+
+# Custom development files
+custom/Dockerfile.*.bak
+custom/*.bak
+
+# Test results and coverage
+coverage/
+TestResults/
+*.coverage
+*.coveragexml
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio cache/options directory
+.vs/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Cursor
+.cursor/

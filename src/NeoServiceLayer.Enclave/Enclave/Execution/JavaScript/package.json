@@ -1,0 +1,11 @@
+{
+  "name": "neo-service-layer-js-runtime",
+  "version": "1.0.0",
+  "description": "JavaScript runtime for Neo Service Layer",
+  "main": "runtime.js",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "moment": "^2.29.1",
+    "lodash": "^4.17.21"
+  }
+}

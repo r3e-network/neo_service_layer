@@ -1,0 +1,44 @@
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+WORKDIR /src
+
+# Copy project files first for better layer caching
+COPY src/NeoServiceLayer.Enclave/NeoServiceLayer.Enclave.csproj NeoServiceLayer.Enclave/
+COPY src/NeoServiceLayer.Core/NeoServiceLayer.Core.csproj NeoServiceLayer.Core/
+COPY src/NeoServiceLayer.Common/NeoServiceLayer.Common.csproj NeoServiceLayer.Common/
+
+# Restore packages
+RUN dotnet restore "NeoServiceLayer.Enclave/NeoServiceLayer.Enclave.csproj"
+
+# Copy the rest of the source code
+COPY src/ ./
+
+# Build the project
+WORKDIR "/src/NeoServiceLayer.Enclave"
+RUN dotnet build "NeoServiceLayer.Enclave.csproj" -c Release -o /app/build
+
+# Publish the application
+FROM build AS publish
+WORKDIR "/src/NeoServiceLayer.Enclave"
+RUN dotnet publish "NeoServiceLayer.Enclave.csproj" -c Release -o /app/publish
+
+# Create the final image
+FROM mcr.microsoft.com/dotnet/runtime:7.0 AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+
+# Create a directory for data
+RUN mkdir -p /app/data
+
+# Create a startup script
+RUN echo '#!/bin/bash\n\
+echo "Starting Neo Service Layer Enclave..."\n\
+echo "Checking assembly..."\n\
+ls -la\n\
+echo "Starting application..."\n\
+dotnet --info\n\
+echo "Running with direct command..."\n\
+exec dotnet NeoServiceLayer.Enclave.dll $@\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Set the entry point
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,169 +1,194 @@
-services:
-  api:
-    build: .
-    ports:
-      - "3000:3000"
-      - "9090:9090"
-    environment:
-      - NODE_ENV=production
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=neo_service
-      - DB_USER=neo_user
-      - DB_PASSWORD=neo_password
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - NEO_RPC_ENDPOINT=http://neo-node:10332
-      - JWT_SECRET=your_jwt_secret_here
-      - TEE_ATTESTATION_URL=https://attestation.example.com
-    volumes:
-      - ./config:/app/config
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      neo-node:
-        condition: service_started
-      elasticsearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
+version: '3.8'
 
-  postgres:
-    image: postgres:15-alpine
+services:
+  # Database and Cache Services
+  mongodb:
+    image: mongo:latest
     ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=neo_service
-      - POSTGRES_USER=neo_user
-      - POSTGRES_PASSWORD=neo_password
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U neo_user -d neo_service"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      - mongodb-data:/data/db
+      - ./init-mongodb.sh:/docker-entrypoint-initdb.d/init-mongodb.sh
     restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand({ping:1}).ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - neo-service-network
 
   redis:
-    image: redis:7-alpine
+    image: redis:latest
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis-data:/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    restart: unless-stopped
+    networks:
+      - neo-service-network
 
-  neo-node:
-    image: cityofzion/neo-go:latest
+  # Core Services
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
     ports:
-      - "10332:10332"
+      - "8080:80"
+      - "8443:443"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      enclave:
+        condition: service_started
     volumes:
-      - neo_data:/root/.neo-cli
-    command: node --mainnet
+      - api-storage:/app/Storage
+      - api-database:/app/Database
+      - api-backups:/app/Backups
+      - ./docker-appsettings.json:/app/appsettings.json
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__MongoDB=mongodb://mongodb:27017/neo_service_layer
+      - ConnectionStrings__Redis=redis:6379
+      - Enclave__Host=enclave
+      - Enclave__Port=5000
+      - Enclave__UseVsock=false
+      - Enclave__Enabled=true
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:10332"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
+    networks:
+      - neo-service-network
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
-    ports:
-      - "9200:9200"
+  enclave:
+    build:
+      context: .
+      dockerfile: Dockerfile.enclave
+    volumes:
+      - enclave-data:/app/data
+      - ./docker-appsettings.json:/app/appsettings.json
     environment:
-      - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - xpack.security.enabled=false
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'status.*green\\|status.*yellow'"]
-      interval: 20s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__MongoDB=mongodb://mongodb:27017/neo_service_layer
+      - ConnectionStrings__Redis=redis:6379
     restart: unless-stopped
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
+    # In a real AWS Nitro Enclave environment, this would be replaced with the actual enclave setup
+    # For local development, we're simulating the enclave as a regular container
+    networks:
+      - neo-service-network
 
-  prometheus:
-    image: prom/prometheus:v2.45.0
-    ports:
-      - "9091:9090"
+  # Function Runtime Services
+  js-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.js-runtime
     volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:9.5.2
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
-    volumes:
-      - grafana_data:/var/lib/grafana
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      - js-runtime-data:/app/data
     restart: unless-stopped
     depends_on:
-      prometheus:
-        condition: service_healthy
+      - enclave
+    networks:
+      - neo-service-network
 
-  jaeger:
-    image: jaegertracing/all-in-one:1.47
-    ports:
-      - "16686:16686"
-      - "14268:14268"
-      - "6831:6831/udp"
-    environment:
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:16686"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+  python-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.python-runtime
+    volumes:
+      - python-runtime-data:/app/data
     restart: unless-stopped
+    depends_on:
+      - enclave
+    networks:
+      - neo-service-network
+
+  dotnet-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.dotnet-runtime
+    volumes:
+      - dotnet-runtime-data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - enclave
+    networks:
+      - neo-service-network
+
+  # Support Services
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    restart: unless-stopped
+    networks:
+      - neo-service-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - neo-service-network
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - neo-service-network
+
+  # Development Tools
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    ports:
+      - "8081:8080"
+    environment:
+      - API_URL=http://localhost:8080/swagger/v1/swagger.json
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - neo-service-network
 
 volumes:
-  postgres_data:
-  redis_data:
-  neo_data:
-  elasticsearch_data:
-  prometheus_data:
-  grafana_data:
+  mongodb-data:
+  redis-data:
+  api-storage:
+  api-database:
+  api-backups:
+  enclave-data:
+  js-runtime-data:
+  python-runtime-data:
+  dotnet-runtime-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  neo-service-network:
+    driver: bridge

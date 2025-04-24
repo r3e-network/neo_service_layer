@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Database and Cache Services
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - ./init-mongodb.sh:/docker-entrypoint-initdb.d/init-mongodb.sh
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand({ping:1}).ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - neo-service-network
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - neo-service-network
+
+  # Core Services
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:80"
+      - "8443:443"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - api-storage:/app/Storage
+      - api-database:/app/Database
+      - api-backups:/app/Backups
+      - ./docker-appsettings.json:/app/appsettings.json
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__MongoDB=mongodb://mongodb:27017/neo_service_layer
+      - ConnectionStrings__Redis=redis:6379
+      - Enclave__Enabled=false
+      - Function__Enabled=false
+    restart: unless-stopped
+    networks:
+      - neo-service-network
+
+volumes:
+  mongodb-data:
+  redis-data:
+  api-storage:
+  api-database:
+  api-backups:
+
+networks:
+  neo-service-network:
+    driver: bridge

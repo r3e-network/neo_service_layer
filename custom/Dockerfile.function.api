@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the project files
+COPY custom/FunctionApi.csproj .
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy the source code
+COPY custom/FunctionApi.cs .
+COPY custom/Program.cs .
+
+# Build the application
+RUN dotnet build -c Release -o out
+
+# Create the runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/out .
+
+# Expose the port
+EXPOSE 80
+
+# Set the entry point
+ENTRYPOINT ["dotnet", "FunctionApi.dll"]

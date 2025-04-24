@@ -1,0 +1,65 @@
+site_name: Neo Service Layer
+site_description: A serverless platform for Neo N3 blockchain with AWS Nitro Enclave support
+site_author: Neo Service Layer Contributors
+repo_url: https://github.com/your-org/neo-service-layer
+repo_name: your-org/neo-service-layer
+
+theme:
+  name: material
+  palette:
+    primary: green
+    accent: light green
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Architecture:
+    - Overview: system_architecture.md
+    - Data Flow: data_flow.md
+    - Workflow: workflow.md
+    - TEE Integration: tee_integration.md
+    - Detailed Architecture:
+      - System Overview: architecture/system_overview.md
+      - Service Layer Components: architecture/service_layer_components.md
+      - Enclave Architecture: architecture/enclave_architecture.md
+      - Security Model: architecture/security_model.md
+      - Service Communication: architecture/service_communication.md
+      - Data Flow: architecture/data_flow.md
+  - Implementation: implementation.md
+  - Function Execution: function_execution.md
+  - API Documentation: api-documentation.md
+  - Guides:
+    - Setup and Run: setup_and_run.md
+    - Deployment: deployment-guide.md
+    - Monitoring: monitoring-guide.md
+  - Security: security.md
+  - Production Readiness: production-readiness.md
+  - Future Enhancements: 
+    - Overview: future-enhancements.md
+    - Future Work: future_work.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - footnotes
+  - toc:
+      permalink: true
+
+plugins:
+  - search
