@@ -59,7 +59,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _secretsRepositoryMock
                 .Setup(x => x.GetByNameAsync(name, accountId))
-                .ReturnsAsync((Secret)null);
+                .ReturnsAsync((Secret?)null);
 
             _enclaveServiceMock
                 .Setup(x => x.SendRequestAsync<object, Secret>(

@@ -115,7 +115,7 @@ namespace NeoServiceLayer.Tests.Unit
             var method = typeof(VsockServer).GetMethod("GetRequestCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
             // Act
-            var result = (long)method.Invoke(vsockServer, null);
+            var result = (long)(method?.Invoke(vsockServer, null) ?? 0L);
 
             // Assert
             Assert.True(result >= 0);
@@ -132,9 +132,9 @@ namespace NeoServiceLayer.Tests.Unit
             var incrementMethod = typeof(VsockServer).GetMethod("IncrementRequestCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
             // Act
-            var initialCount = (long)getMethod.Invoke(vsockServer, null);
-            incrementMethod.Invoke(vsockServer, null);
-            var newCount = (long)getMethod.Invoke(vsockServer, null);
+            var initialCount = (long)(getMethod?.Invoke(vsockServer, null) ?? 0L);
+            incrementMethod?.Invoke(vsockServer, null);
+            var newCount = (long)(getMethod?.Invoke(vsockServer, null) ?? 0L);
 
             // Assert
             Assert.Equal(initialCount + 1, newCount);
@@ -151,7 +151,7 @@ namespace NeoServiceLayer.Tests.Unit
                 RequestId = "6ea65a0c-4e6d-4cbe-a776-4ec42efc86e1",
                 ServiceType = "ping",
                 Operation = "ping",
-                Payload = null
+                Payload = Array.Empty<byte>()
             };
 
             var requestBytes = JsonSerializer.SerializeToUtf8Bytes(request);
@@ -182,7 +182,7 @@ namespace NeoServiceLayer.Tests.Unit
                 RequestId = "15ac7ca9-9b1b-4ad1-8c5c-791b35ae7798",
                 ServiceType = "metrics",
                 Operation = "get",
-                Payload = null
+                Payload = Array.Empty<byte>()
             };
 
             var requestBytes = JsonSerializer.SerializeToUtf8Bytes(request);

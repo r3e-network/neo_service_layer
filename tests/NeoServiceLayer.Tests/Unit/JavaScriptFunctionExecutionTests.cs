@@ -37,19 +37,24 @@ namespace NeoServiceLayer.Tests.Unit
             var dotNetRuntime = new Enclave.Enclave.Execution.DotNetRuntime(dotNetRuntimeLoggerMock.Object);
             var pythonRuntime = new Enclave.Enclave.Execution.PythonRuntime(pythonRuntimeLoggerMock.Object);
 
-            // Create an actual FunctionExecutor instance with the actual runtime dependencies
-            var functionExecutor = new Enclave.Enclave.Execution.FunctionExecutor(
-                functionExecutorLoggerMock.Object,
-                new Dictionary<string, Enclave.Enclave.Execution.IFunctionRuntime>(), // We'll set this after creating the NodeJsRuntime to avoid circular dependency
-                dotNetRuntime,
-                pythonRuntime);
-
-            // Create the actual service instances with their required dependencies
+            // Create the service instances with their required dependencies
             var walletService = new Enclave.Enclave.Services.EnclaveWalletService(walletLoggerMock.Object);
             var priceFeedService = new Enclave.Enclave.Services.EnclavePriceFeedService(priceFeedLoggerMock.Object, walletService);
             var secretsService = new Enclave.Enclave.Services.EnclaveSecretsService(secretsLoggerMock.Object);
-            var functionService = new Enclave.Enclave.Services.EnclaveFunctionService(functionLoggerMock.Object, functionExecutor);
 
+            // Create a mock FunctionExecutor first
+            var mockFunctionExecutor = new Mock<Enclave.Enclave.Execution.FunctionExecutor>(
+                functionExecutorLoggerMock.Object,
+                null,
+                dotNetRuntime,
+                pythonRuntime);
+
+            // Create a mock function service
+            var functionService = new Enclave.Enclave.Services.EnclaveFunctionService(
+                functionLoggerMock.Object,
+                mockFunctionExecutor.Object);
+
+            // Now create the NodeJsRuntime with all dependencies
             _nodeJsRuntime = new NodeJsRuntime(
                 _loggerMock.Object,
                 priceFeedService,
@@ -57,20 +62,9 @@ namespace NeoServiceLayer.Tests.Unit
                 walletService,
                 functionService);
 
-            // Now that we have created the NodeJsRuntime, we need to update the FunctionExecutor's _runtimes dictionary
-            // to include it. We'll use reflection to do this since the field is private.
-            var runtimesField = typeof(Enclave.Enclave.Execution.FunctionExecutor).GetField("_runtimes",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            // No need to create another function service
 
-            if (runtimesField != null)
-            {
-                var runtimes = runtimesField.GetValue(functionExecutor) as Dictionary<string, Enclave.Enclave.Execution.IFunctionRuntime>;
-                if (runtimes != null)
-                {
-                    runtimes["node"] = _nodeJsRuntime;
-                    runtimes["javascript"] = _nodeJsRuntime;
-                }
-            }
+            // We're using a mock FunctionExecutor, so we don't need to update its _runtimes dictionary
         }
 
         [Fact]
