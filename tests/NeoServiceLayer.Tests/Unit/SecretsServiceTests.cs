@@ -194,7 +194,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _secretsRepositoryMock
                 .Setup(x => x.GetByIdAsync(secretId))
-                .ReturnsAsync((Secret)null);
+                .ReturnsAsync((Secret?)null);
 
             // Act
             var result = await _secretsService.GetByIdAsync(secretId);
@@ -368,7 +368,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _secretsRepositoryMock
                 .Setup(x => x.GetByIdAsync(secretId))
-                .ReturnsAsync((Secret)null);
+                .ReturnsAsync((Secret?)null);
 
             // Act
             var result = await _secretsService.HasAccessAsync(secretId, functionId);

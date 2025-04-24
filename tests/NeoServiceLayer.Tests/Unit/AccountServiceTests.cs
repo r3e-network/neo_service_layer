@@ -66,11 +66,11 @@ namespace NeoServiceLayer.Tests.Unit
 
             _accountRepositoryMock
                 .Setup(x => x.GetByUsernameAsync(username))
-                .ReturnsAsync((Account)null);
+                .ReturnsAsync((Account?)null);
 
             _accountRepositoryMock
                 .Setup(x => x.GetByEmailAsync(email))
-                .ReturnsAsync((Account)null);
+                .ReturnsAsync((Account?)null);
 
             _enclaveServiceMock
                 .Setup(x => x.SendRequestAsync<object, Account>(
@@ -167,7 +167,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _accountRepositoryMock
                 .Setup(x => x.GetByUsernameAsync(username))
-                .ReturnsAsync((Account)null);
+                .ReturnsAsync((Account?)null);
 
             _accountRepositoryMock
                 .Setup(x => x.GetByEmailAsync(email))
@@ -232,7 +232,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _accountRepositoryMock
                 .Setup(x => x.GetByIdAsync(accountId))
-                .ReturnsAsync((Account)null);
+                .ReturnsAsync((Account?)null);
 
             // Act
             var result = await _accountService.GetByIdAsync(accountId);

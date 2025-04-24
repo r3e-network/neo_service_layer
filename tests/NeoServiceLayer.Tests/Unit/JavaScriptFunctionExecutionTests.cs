@@ -40,7 +40,7 @@ namespace NeoServiceLayer.Tests.Unit
             // Create an actual FunctionExecutor instance with the actual runtime dependencies
             var functionExecutor = new Enclave.Enclave.Execution.FunctionExecutor(
                 functionExecutorLoggerMock.Object,
-                null, // We'll set this after creating the NodeJsRuntime to avoid circular dependency
+                new Dictionary<string, Enclave.Enclave.Execution.IFunctionRuntime>(), // We'll set this after creating the NodeJsRuntime to avoid circular dependency
                 dotNetRuntime,
                 pythonRuntime);
 

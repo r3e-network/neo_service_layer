@@ -147,7 +147,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _functionRepositoryMock
                 .Setup(x => x.GetByIdAsync(functionId))
-                .ReturnsAsync((Function)null);
+                .ReturnsAsync((Function?)null);
 
             // Act
             var result = await _functionService.GetByIdAsync(functionId);

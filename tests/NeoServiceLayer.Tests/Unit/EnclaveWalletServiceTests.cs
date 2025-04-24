@@ -113,7 +113,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _walletService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now sign data
             var signDataRequest = new
@@ -165,7 +165,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _walletService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now transfer NEO
             var transferRequest = new
@@ -221,7 +221,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _walletService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now transfer GAS
             var transferRequest = new
@@ -277,7 +277,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _walletService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var walletId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now transfer token
             var transferRequest = new

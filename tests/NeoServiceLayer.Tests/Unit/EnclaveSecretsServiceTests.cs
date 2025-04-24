@@ -79,7 +79,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _secretsService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now get the secret value
             var getSecretRequest = new
@@ -130,7 +130,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _secretsService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now update the secret value
             var updateSecretRequest = new
@@ -183,7 +183,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _secretsService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now rotate the secret
             var rotateSecretRequest = new
@@ -236,7 +236,7 @@ namespace NeoServiceLayer.Tests.Unit
             };
             var createResponse = await _secretsService.ProcessRequestAsync(createEnclaveRequest);
             var createResponseObj = JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(createResponse.Payload));
-            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString());
+            var secretId = Guid.Parse(createResponseObj.GetProperty("Id").GetString() ?? "");
 
             // Now check access
             var checkAccessRequest = new

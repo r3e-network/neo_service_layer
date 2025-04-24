@@ -215,7 +215,7 @@ namespace NeoServiceLayer.Tests.Unit
 
             _priceRepositoryMock
                 .Setup(x => x.GetLatestPriceAsync(symbol, baseCurrency))
-                .ReturnsAsync((Price)null);
+                .ReturnsAsync((Price?)null);
 
             _enclaveServiceMock
                 .Setup(x => x.SendRequestAsync<object, List<Price>>(
